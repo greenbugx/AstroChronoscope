@@ -6,8 +6,12 @@ import {
   type SpectralExtractionResponse,
   type SpectralChannel,
   type SpectralComparisonResponse,
+  type SourceGaiaAssociationResponse,
+  type GaiaConeSearchResponse,
   extractSpectrum,
   compareSpectra,
+  getSourceGaiaAssociation,
+  searchGaia,
 } from "@/lib/api";
 import { TwinOrbit } from "@/components/loading-ui/twin-orbit";
 
@@ -26,10 +30,18 @@ export interface TimeDomainAnalysisTabProps {
   spectralComparison?: SpectralComparisonResponse | null;
   isSpectralComparing?: boolean;
   spectralComparisonError?: string | null;
+  sourceGaiaAssociation?: SourceGaiaAssociationResponse | null;
+  isGaiaAssociating?: boolean;
+  sourceGaiaError?: string | null;
+  gaiaConeSearchResult?: GaiaConeSearchResponse | null;
+  isGaiaSearching?: boolean;
+  gaiaSearchError?: string | null;
   onExtractLightCurve: (maxObs: number, thresholdSigma: number, band: string) => void;
   onSelectSourceId: (sourceId: string) => void;
   onExtractSpectrum?: (sourceId?: string, customRa?: number, customDec?: number, method?: "bilinear" | "nearest") => void;
   onCompareSpectra?: (spectrumIdA: string, spectrumIdB: string) => void;
+  onSearchGaia?: (radiusArcsec?: number, magLimit?: number, limit?: number) => void;
+  onAssociateGaia?: (sourceId: string) => void;
   onNavigateTab: (tab: "discovery" | "explorer" | "differential" | "timedomain" | "reports") => void;
 }
 
@@ -70,21 +82,34 @@ export default function TimeDomainAnalysisTab({
   spectralComparison,
   isSpectralComparing,
   spectralComparisonError,
+  sourceGaiaAssociation,
+  isGaiaAssociating,
+  sourceGaiaError,
+  gaiaConeSearchResult,
+  isGaiaSearching,
+  gaiaSearchError,
   onExtractLightCurve,
   onSelectSourceId,
   onExtractSpectrum,
   onCompareSpectra,
+  onSearchGaia,
+  onAssociateGaia,
   onNavigateTab,
 }: TimeDomainAnalysisTabProps) {
   const maxObsId = useId();
   const sigmaId = useId();
   const compareRaId = useId();
   const compareDecId = useId();
+  const gaiaRadiusId = useId();
+  const gaiaMagId = useId();
+  const gaiaLimitId = useId();
 
   const [maxObs, setMaxObs] = useState("10");
   const [sigma, setSigma] = useState("3.0");
   const [selectedBand, setSelectedBand] = useState<string>("ALL");
-  const [activeAnalysisMode, setActiveAnalysisMode] = useState<"lightcurve" | "transients" | "motion" | "spectral">("lightcurve");
+  const [activeAnalysisMode, setActiveAnalysisMode] = useState<
+    "lightcurve" | "transients" | "motion" | "spectral" | "gaia"
+  >("lightcurve");
 
   const [hoveredPoint, setHoveredPoint] = useState<LightCurvePoint | null>(null);
 
@@ -104,6 +129,20 @@ export default function TimeDomainAnalysisTab({
   const [localIsComparing, setLocalIsComparing] = useState(false);
   const [localComparisonError, setLocalComparisonError] = useState<string | null>(null);
 
+  // Gaia DR3 States (Phase 5)
+  const [localGaiaAssociation, setLocalGaiaAssociation] = useState<SourceGaiaAssociationResponse | null>(null);
+  const [localIsAssociating, setLocalIsAssociating] = useState(false);
+  const [localGaiaAssocError, setLocalGaiaAssocError] = useState<string | null>(null);
+
+  const [localGaiaSearch, setLocalGaiaSearch] = useState<GaiaConeSearchResponse | null>(null);
+  const [localIsSearching, setLocalIsSearching] = useState(false);
+  const [localGaiaSearchError, setLocalGaiaSearchError] = useState<string | null>(null);
+
+  const [gaiaSubMode, setGaiaSubMode] = useState<"association" | "cone">("association");
+  const [gaiaRadiusArcsec, setGaiaRadiusArcsec] = useState("10.0");
+  const [gaiaMagCut, setGaiaMagCut] = useState("21.0");
+  const [gaiaLimit, setGaiaLimit] = useState("50");
+
   const activeSpectrumResponse = spectrumData || localSpectrum;
   const activeSpectrum = activeSpectrumResponse?.spectrum;
   const isSpectrumBusy = isExtractingSpectrum || localIsExtracting;
@@ -114,9 +153,71 @@ export default function TimeDomainAnalysisTab({
   const isComparingBusy = isSpectralComparing || localIsComparing;
   const activeCompareError = spectralComparisonError || localComparisonError;
 
+  const activeGaiaAssociation = sourceGaiaAssociation || localGaiaAssociation;
+  const isGaiaAssocBusy = isGaiaAssociating || localIsAssociating;
+  const activeGaiaAssocError = sourceGaiaError || localGaiaAssocError;
+
+  const activeGaiaSearch = gaiaConeSearchResult || localGaiaSearch;
+  const isGaiaSearchBusy = isGaiaSearching || localIsSearching;
+  const activeGaiaSearchErr = gaiaSearchError || localGaiaSearchError;
+
   const activeSource: SourceLightCurve | undefined = lightCurveData?.sources?.find(
     (s) => s.source_id === selectedSourceId
   ) || lightCurveData?.sources?.[0];
+
+  // Trigger Gaia Association Handler
+  const handleTriggerGaiaAssociation = async () => {
+    if (!activeSource) return;
+    if (onAssociateGaia) {
+      onAssociateGaia(activeSource.source_id);
+    } else {
+      try {
+        setLocalIsAssociating(true);
+        setLocalGaiaAssocError(null);
+        const res = await getSourceGaiaAssociation(activeSource.source_id);
+        setLocalGaiaAssociation(res);
+      } catch (err) {
+        setLocalGaiaAssocError(err instanceof Error ? err.message : "Gaia source association failed");
+      } finally {
+        setLocalIsAssociating(false);
+      }
+    }
+  };
+
+  // Trigger Gaia Cone Search Handler
+  const handleTriggerGaiaSearch = async () => {
+    const raNum = parseFloat(ra);
+    const decNum = parseFloat(dec);
+    const radNum = parseFloat(gaiaRadiusArcsec) || 10.0;
+    const magNum = gaiaMagCut ? parseFloat(gaiaMagCut) : undefined;
+    const limNum = parseInt(gaiaLimit, 10) || 50;
+
+    if (isNaN(raNum) || isNaN(decNum)) {
+      setLocalGaiaSearchError("Coordinates must be valid numbers");
+      return;
+    }
+
+    if (onSearchGaia) {
+      onSearchGaia(radNum, magNum, limNum);
+    } else {
+      try {
+        setLocalIsSearching(true);
+        setLocalGaiaSearchError(null);
+        const res = await searchGaia({
+          ra: raNum,
+          dec: decNum,
+          radius_arcsec: radNum,
+          magnitude_limit: magNum,
+          limit: limNum,
+        });
+        setLocalGaiaSearch(res);
+      } catch (err) {
+        setLocalGaiaSearchError(err instanceof Error ? err.message : "Gaia cone search failed");
+      } finally {
+        setLocalIsSearching(false);
+      }
+    }
+  };
 
   // Spectral Extraction Handler
   const handleTriggerExtractSpectrum = async (useSource = false) => {
@@ -414,6 +515,17 @@ export default function TimeDomainAnalysisTab({
             >
               102-Channel DR1 Spectra
             </button>
+
+            <button
+              onClick={() => setActiveAnalysisMode("gaia")}
+              className={`px-3 py-1 text-xs font-bold uppercase border cursor-pointer whitespace-nowrap ${
+                activeAnalysisMode === "gaia"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-black text-neutral-400 hover:text-white border-neutral-800 hover:bg-neutral-900"
+              }`}
+            >
+              Gaia DR3 Catalogue
+            </button>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
@@ -522,14 +634,64 @@ export default function TimeDomainAnalysisTab({
                 )}
               </div>
 
-              {/* External Cross-Match Note */}
-              <div className="border border-neutral-800 bg-[#0d0d0d] p-2.5 flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-neutral-400 uppercase">
-                  External Cross-Match
-                </span>
-                <span className="text-[10px] text-neutral-500">
-                  Gaia DR3 proper motion and WISE/NEOWISE baselines planned for subsequent release.
-                </span>
+              {/* Gaia DR3 External Cross-Match Telemetry Card */}
+              <div className="border border-neutral-800 bg-[#0d0d0d] p-2.5 flex flex-col gap-1.5">
+                <div className="flex items-center justify-between border-b border-neutral-800 pb-1">
+                  <span className="text-[10px] font-bold text-neutral-300 uppercase">
+                    Gaia DR3 Counterpart
+                  </span>
+                  {activeGaiaAssociation && (
+                    <span
+                      className={`px-1 text-[9px] font-bold border ${
+                        activeGaiaAssociation.status === "MATCHED"
+                          ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                          : activeGaiaAssociation.status === "AMBIGUOUS"
+                            ? "bg-amber-950 text-amber-400 border-amber-800"
+                            : "bg-neutral-900 text-neutral-400 border-neutral-700"
+                      }`}
+                    >
+                      {activeGaiaAssociation.status}
+                    </span>
+                  )}
+                </div>
+
+                {activeGaiaAssociation?.best ? (
+                  <div className="flex flex-col gap-0.5 text-[10px]">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Gaia ID:</span>
+                      <span className="text-cyan-300 font-bold">{activeGaiaAssociation.best.gaia_source_id.slice(-10)}...</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Offset:</span>
+                      <span className="text-white font-bold">{activeGaiaAssociation.best.separation_arcsec.toFixed(3)}&quot;</span>
+                    </div>
+                    {activeGaiaAssociation.best.source?.photometry?.g != null && (
+                      <div className="flex justify-between">
+                        <span className="text-neutral-500">G Mag:</span>
+                        <span className="text-emerald-400 font-bold">{activeGaiaAssociation.best.source.photometry.g.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setActiveAnalysisMode("gaia")}
+                      className="mt-1 px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-[10px] uppercase font-bold cursor-pointer"
+                    >
+                      Inspect Gaia Astrometry
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-neutral-500">
+                      {isGaiaAssocBusy ? "Associating with Gaia DR3..." : "Query Gaia counterpart candidates for selected source."}
+                    </span>
+                    <button
+                      onClick={handleTriggerGaiaAssociation}
+                      disabled={isGaiaAssocBusy || !activeSource}
+                      className="px-2 py-0.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 border border-neutral-700 text-neutral-300 text-[10px] uppercase font-bold cursor-pointer"
+                    >
+                      {isGaiaAssocBusy ? "QUERYING..." : "CROSS-MATCH GAIA"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1286,6 +1448,419 @@ export default function TimeDomainAnalysisTab({
                       Click EXTRACT 1D SPECTRUM above to sample the SPHEREx DR1 surface brightness cube across 102 channels.
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Mode 5: Gaia DR3 Catalog Integration */}
+              {activeAnalysisMode === "gaia" && (
+                <div className="flex flex-col gap-3">
+                  {/* Top Controls & Sub-tabs */}
+                  <div className="border border-neutral-800 bg-[#0d0d0d] p-3 flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase text-white tracking-wider">
+                          Gaia DR3 Astrometry & Cross-Matching
+                        </span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-neutral-800 text-neutral-300 border border-neutral-700">
+                          ESA Gaia DR3 (Ref Epoch 2016.0)
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setGaiaSubMode("association")}
+                          className={`px-2 py-0.5 text-[10px] uppercase font-bold border cursor-pointer ${
+                            gaiaSubMode === "association"
+                              ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                              : "bg-black text-neutral-400 hover:text-white border-neutral-800"
+                          }`}
+                        >
+                          Source Cross-Match
+                        </button>
+                        <button
+                          onClick={() => setGaiaSubMode("cone")}
+                          className={`px-2 py-0.5 text-[10px] uppercase font-bold border cursor-pointer ${
+                            gaiaSubMode === "cone"
+                              ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                              : "bg-black text-neutral-400 hover:text-white border-neutral-800"
+                          }`}
+                        >
+                          Target Cone Search
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Submode 1: Source Cross-Match */}
+                    {gaiaSubMode === "association" && (
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs text-neutral-400">
+                            {activeSource ? (
+                              <span>
+                                Target Source: <strong className="text-white">{activeSource.source_id.slice(0, 16)}...</strong> (RA {activeSource.reference_ra_deg.toFixed(4)}°, Dec {activeSource.reference_dec_deg.toFixed(4)}°)
+                              </span>
+                            ) : (
+                              <span>No active source selected from catalog.</span>
+                            )}
+                          </div>
+
+                          <button
+                            onClick={handleTriggerGaiaAssociation}
+                            disabled={isGaiaAssocBusy || !activeSource}
+                            className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 border border-blue-500 text-white font-bold text-xs uppercase cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
+                          >
+                            {isGaiaAssocBusy ? (
+                              <>
+                                <TwinOrbit className="size-3 text-white" />
+                                <span>CROSS-MATCHING...</span>
+                              </>
+                            ) : (
+                              <span>QUERY GAIA DR3 COUNTERPART</span>
+                            )}
+                          </button>
+                        </div>
+
+                        {activeGaiaAssocError && (
+                          <div className="border border-red-600 bg-red-950/40 p-2 text-xs text-red-200 flex items-center justify-between">
+                            <span>{activeGaiaAssocError}</span>
+                            <button
+                              onClick={handleTriggerGaiaAssociation}
+                              className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold uppercase cursor-pointer"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
+
+                        {activeGaiaAssociation && (
+                          <div className="flex flex-col gap-3">
+                            {/* Match Status Banner */}
+                            <div className="flex items-center justify-between p-2.5 border border-neutral-800 bg-black">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-neutral-500 uppercase font-bold">Match Outcome:</span>
+                                <span
+                                  className={`px-2 py-0.5 text-[11px] font-bold border uppercase ${
+                                    activeGaiaAssociation.status === "MATCHED"
+                                      ? "bg-emerald-950 text-emerald-400 border-emerald-800"
+                                      : activeGaiaAssociation.status === "AMBIGUOUS"
+                                        ? "bg-amber-950 text-amber-400 border-amber-800"
+                                        : "bg-neutral-900 text-neutral-400 border-neutral-700"
+                                  }`}
+                                >
+                                  {activeGaiaAssociation.status === "MATCHED"
+                                    ? "MATCHED (SINGLE GAIA COUNTERPART)"
+                                    : activeGaiaAssociation.status === "AMBIGUOUS"
+                                      ? `AMBIGUOUS (${activeGaiaAssociation.candidates.length} CANDIDATES)`
+                                      : "UNMATCHED (NO CANDIDATES IN SEARCH CONE)"}
+                                </span>
+                              </div>
+
+                              <span className="text-[10px] text-neutral-500">
+                                Match Radius: {activeGaiaAssociation.config?.radius_arcsec ?? 3.0}&quot;
+                              </span>
+                            </div>
+
+                            {/* Best Counterpart Details */}
+                            {activeGaiaAssociation.best && (
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                <div className="p-2 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-neutral-500 uppercase">Gaia Source ID</span>
+                                  <span className="font-bold text-white font-mono break-all text-[11px]">
+                                    {activeGaiaAssociation.best.gaia_source_id}
+                                  </span>
+                                </div>
+
+                                <div className="p-2 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-neutral-500 uppercase">Angular Separation</span>
+                                  <span className="text-sm font-bold text-emerald-400">
+                                    {activeGaiaAssociation.best.separation_arcsec.toFixed(3)}&quot;
+                                  </span>
+                                  {activeGaiaAssociation.best.separation_propagated_arcsec != null && (
+                                    <span className="text-[10px] text-neutral-400">
+                                      Propagated: {activeGaiaAssociation.best.separation_propagated_arcsec.toFixed(3)}&quot;
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="p-2 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-neutral-500 uppercase">Photometry (G/BP/RP)</span>
+                                  <span className="font-bold text-cyan-300">
+                                    G: {activeGaiaAssociation.best.source?.photometry?.g != null ? `${activeGaiaAssociation.best.source.photometry.g.toFixed(2)} mag` : "-"}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400">
+                                    BP: {activeGaiaAssociation.best.source?.photometry?.bp != null ? `${activeGaiaAssociation.best.source.photometry.bp.toFixed(2)}` : "-"} · RP: {activeGaiaAssociation.best.source?.photometry?.rp != null ? `${activeGaiaAssociation.best.source.photometry.rp.toFixed(2)}` : "-"}
+                                  </span>
+                                </div>
+
+                                <div className="p-2 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                                  <span className="text-[10px] text-neutral-500 uppercase">Proper Motion & RUWE</span>
+                                  <span className="font-bold text-white font-mono text-[11px]">
+                                    {activeGaiaAssociation.best.source?.astrometry?.pmra_mas_yr != null ? `μα* ${activeGaiaAssociation.best.source.astrometry.pmra_mas_yr.toFixed(1)}` : "No PM"}
+                                  </span>
+                                  <span className="text-[10px] text-neutral-400 font-mono">
+                                    {activeGaiaAssociation.best.source?.astrometry?.pmdec_mas_yr != null ? `μδ ${activeGaiaAssociation.best.source.astrometry.pmdec_mas_yr.toFixed(1)} mas/yr` : ""} · RUWE: {activeGaiaAssociation.best.source?.astrometry?.ruwe != null ? activeGaiaAssociation.best.source.astrometry.ruwe.toFixed(2) : "-"}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Statistical Significance and Epoch Propagation */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                              {/* Positional Significance Card */}
+                              <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-amber-300 uppercase">
+                                  Positional Significance Telemetry
+                                </span>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Combined Uncertainty (σ):</span>
+                                  <span className="text-white font-mono">
+                                    {activeGaiaAssociation.significance?.combined_sigma_arcsec != null
+                                      ? `${activeGaiaAssociation.significance.combined_sigma_arcsec.toFixed(3)}"`
+                                      : "N/A"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Normalized Separation (χ):</span>
+                                  <span className="text-white font-mono">
+                                    {activeGaiaAssociation.significance?.normalized_separation != null
+                                      ? `${activeGaiaAssociation.significance.normalized_separation.toFixed(2)}σ`
+                                      : "N/A"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Rayleigh Null P-Value:</span>
+                                  <span className="text-emerald-400 font-bold font-mono">
+                                    {activeGaiaAssociation.significance?.match_p_value != null
+                                      ? activeGaiaAssociation.significance.match_p_value.toExponential(3)
+                                      : "N/A"}
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-neutral-500 italic mt-0.5">
+                                  P-value is probability of offset under Rayleigh null; not physical association proof.
+                                </span>
+                              </div>
+
+                              {/* Epoch Propagation Card */}
+                              <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-sky-300 uppercase">
+                                  Proper-Motion Epoch Propagation
+                                </span>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Gaia Reference Epoch:</span>
+                                  <span className="text-white font-mono">2016.0 (J2016.0)</span>
+                                </div>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Observation Epoch:</span>
+                                  <span className="text-white font-mono">
+                                    {activeGaiaAssociation.observation_epoch?.julian_year != null
+                                      ? `${activeGaiaAssociation.observation_epoch.julian_year.toFixed(3)} J`
+                                      : "Unknown"}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between border-b border-neutral-900 pb-0.5 text-[11px]">
+                                  <span className="text-neutral-500">Propagation Status:</span>
+                                  <span className="text-white font-mono">
+                                    {activeGaiaAssociation.propagation?.propagated ? "PROCEED (PM APPLIED)" : (activeGaiaAssociation.propagation?.limitation || "None")}
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-neutral-500 italic mt-0.5">
+                                  Propagated coordinate displacement accounts for stellar space motion.
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Candidate List Table */}
+                            {activeGaiaAssociation.candidates.length > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[11px] font-bold text-neutral-400 uppercase">
+                                  Candidate Counterparts ({activeGaiaAssociation.candidates.length})
+                                </span>
+                                <div className="overflow-x-auto max-h-40">
+                                  <table className="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                      <tr className="border-b border-neutral-800 text-[10px] text-neutral-500 uppercase sticky top-0 bg-[#0d0d0d]">
+                                        <th className="py-1 px-2">Gaia ID</th>
+                                        <th className="py-1 px-2">Sep (&quot;)</th>
+                                        <th className="py-1 px-2">Prop. Sep</th>
+                                        <th className="py-1 px-2">G (mag)</th>
+                                        <th className="py-1 px-2">BP (mag)</th>
+                                        <th className="py-1 px-2">RP (mag)</th>
+                                        <th className="py-1 px-2">Plx (mas)</th>
+                                        <th className="py-1 px-2">RUWE</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-neutral-900 text-[11px]">
+                                      {activeGaiaAssociation.candidates.map((cand) => (
+                                        <tr key={cand.gaia_source_id} className="hover:bg-neutral-900">
+                                          <td className="py-1 px-2 text-cyan-300 font-mono">{cand.gaia_source_id}</td>
+                                          <td className="py-1 px-2 text-white font-bold">{cand.separation_arcsec.toFixed(3)}&quot;</td>
+                                          <td className="py-1 px-2 text-neutral-400">
+                                            {cand.separation_propagated_arcsec != null ? `${cand.separation_propagated_arcsec.toFixed(3)}"` : "-"}
+                                          </td>
+                                          <td className="py-1 px-2 text-emerald-400 font-bold">
+                                            {cand.source?.photometry?.g != null ? cand.source.photometry.g.toFixed(2) : "-"}
+                                          </td>
+                                          <td className="py-1 px-2 text-neutral-300">
+                                            {cand.source?.photometry?.bp != null ? cand.source.photometry.bp.toFixed(2) : "-"}
+                                          </td>
+                                          <td className="py-1 px-2 text-neutral-300">
+                                            {cand.source?.photometry?.rp != null ? cand.source.photometry.rp.toFixed(2) : "-"}
+                                          </td>
+                                          <td className="py-1 px-2 text-neutral-400">
+                                            {cand.source?.astrometry?.parallax_mas != null ? cand.source.astrometry.parallax_mas.toFixed(2) : "-"}
+                                          </td>
+                                          <td className="py-1 px-2 text-neutral-400">
+                                            {cand.source?.astrometry?.ruwe != null ? cand.source.astrometry.ruwe.toFixed(2) : "-"}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Submode 2: Field Cone Search */}
+                    {gaiaSubMode === "cone" && (
+                      <div className="flex flex-col gap-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                          <div className="flex flex-col gap-0.5">
+                            <label htmlFor={gaiaRadiusId} className="text-[10px] uppercase font-bold text-neutral-400">
+                              Radius (arcsec)
+                            </label>
+                            <input
+                              id={gaiaRadiusId}
+                              type="number"
+                              min="0.1"
+                              max="60.0"
+                              step="0.5"
+                              value={gaiaRadiusArcsec}
+                              onChange={(e) => setGaiaRadiusArcsec(e.target.value)}
+                              className="bg-black border border-neutral-800 px-2.5 py-1 text-xs text-white font-mono outline-none"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-0.5">
+                            <label htmlFor={gaiaMagId} className="text-[10px] uppercase font-bold text-neutral-400">
+                              G Mag Cut (≤)
+                            </label>
+                            <input
+                              id={gaiaMagId}
+                              type="text"
+                              value={gaiaMagCut}
+                              onChange={(e) => setGaiaMagCut(e.target.value)}
+                              placeholder="21.0"
+                              className="bg-black border border-neutral-800 px-2.5 py-1 text-xs text-white font-mono outline-none"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-0.5">
+                            <label htmlFor={gaiaLimitId} className="text-[10px] uppercase font-bold text-neutral-400">
+                              Limit
+                            </label>
+                            <input
+                              id={gaiaLimitId}
+                              type="number"
+                              min="1"
+                              max="1000"
+                              value={gaiaLimit}
+                              onChange={(e) => setGaiaLimit(e.target.value)}
+                              className="bg-black border border-neutral-800 px-2.5 py-1 text-xs text-white font-mono outline-none"
+                            />
+                          </div>
+
+                          <button
+                            onClick={handleTriggerGaiaSearch}
+                            disabled={isGaiaSearchBusy}
+                            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-800 border border-blue-500 text-white font-bold text-xs uppercase cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                          >
+                            {isGaiaSearchBusy ? (
+                              <>
+                                <TwinOrbit className="size-3 text-white" />
+                                <span>SEARCHING...</span>
+                              </>
+                            ) : (
+                              <span>SEARCH GAIA DR3 CONE</span>
+                            )}
+                          </button>
+                        </div>
+
+                        {activeGaiaSearchErr && (
+                          <div className="border border-red-600 bg-red-950/40 p-2 text-xs text-red-200 flex items-center justify-between">
+                            <span>{activeGaiaSearchErr}</span>
+                            <button
+                              onClick={handleTriggerGaiaSearch}
+                              className="px-2 py-0.5 bg-red-600 text-white text-[10px] font-bold uppercase cursor-pointer"
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
+
+                        {activeGaiaSearch && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between text-xs text-neutral-400 border-b border-neutral-800 pb-1">
+                              <span>Found <strong className="text-white">{activeGaiaSearch.sources.length}</strong> Gaia DR3 sources within {activeGaiaSearch.query.radius_arcsec}&quot;</span>
+                              <span className="text-[10px]">ICRS J2016.0</span>
+                            </div>
+
+                            <div className="overflow-x-auto max-h-56">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="border-b border-neutral-800 text-[10px] text-neutral-500 uppercase sticky top-0 bg-[#0d0d0d]">
+                                    <th className="py-1 px-2">Gaia Source ID</th>
+                                    <th className="py-1 px-2">Sep (&quot;)</th>
+                                    <th className="py-1 px-2">RA (deg)</th>
+                                    <th className="py-1 px-2">Dec (deg)</th>
+                                    <th className="py-1 px-2">G (mag)</th>
+                                    <th className="py-1 px-2">BP (mag)</th>
+                                    <th className="py-1 px-2">RP (mag)</th>
+                                    <th className="py-1 px-2">PM RA</th>
+                                    <th className="py-1 px-2">PM Dec</th>
+                                    <th className="py-1 px-2">RUWE</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-neutral-900 text-[11px]">
+                                  {activeGaiaSearch.sources.map((src, idx) => (
+                                    <tr key={src.source_id} className="hover:bg-neutral-900">
+                                      <td className="py-1 px-2 text-cyan-300 font-mono">{src.source_id}</td>
+                                      <td className="py-1 px-2 text-white font-bold">
+                                        {activeGaiaSearch.separations_arcsec[idx]?.toFixed(3) ?? "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-300">{src.coordinates.ra.toFixed(5)}</td>
+                                      <td className="py-1 px-2 text-neutral-300">{src.coordinates.dec.toFixed(5)}</td>
+                                      <td className="py-1 px-2 text-emerald-400 font-bold">
+                                        {src.photometry.g != null ? src.photometry.g.toFixed(2) : "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-300">
+                                        {src.photometry.bp != null ? src.photometry.bp.toFixed(2) : "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-300">
+                                        {src.photometry.rp != null ? src.photometry.rp.toFixed(2) : "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-400 font-mono">
+                                        {src.astrometry.pmra_mas_yr != null ? src.astrometry.pmra_mas_yr.toFixed(1) : "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-400 font-mono">
+                                        {src.astrometry.pmdec_mas_yr != null ? src.astrometry.pmdec_mas_yr.toFixed(1) : "-"}
+                                      </td>
+                                      <td className="py-1 px-2 text-neutral-400 font-mono">
+                                        {src.astrometry.ruwe != null ? src.astrometry.ruwe.toFixed(2) : "-"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

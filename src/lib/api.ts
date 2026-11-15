@@ -890,6 +890,257 @@ export async function getStorageTelemetry(): Promise<StorageTelemetryResponse> {
   return request<StorageTelemetryResponse>('/api/v1/telemetry');
 }
 
+// ------------------------------------------------------------------
+// Phase 5: Gaia DR3 Integration & Cross-Matching
+// ------------------------------------------------------------------
+
+export type MatchStatus = "MATCHED" | "AMBIGUOUS" | "UNMATCHED";
+
+export interface GaiaProvenance {
+  catalog: string;
+  retrieved_at: string;
+  query_reference?: string | null;
+  tap_endpoint: string;
+}
+
+export interface GaiaCoordinates {
+  ra: number;
+  dec: number;
+  reference_epoch: number;
+  ra_error_mas?: number | null;
+  dec_error_mas?: number | null;
+}
+
+export interface GaiaAstrometry {
+  parallax_mas?: number | null;
+  parallax_error_mas?: number | null;
+  pmra_mas_yr?: number | null;
+  pmdec_mas_yr?: number | null;
+  pmra_error_mas_yr?: number | null;
+  pmdec_error_mas_yr?: number | null;
+  ruwe?: number | null;
+  ruwe_note?: string;
+}
+
+export interface GaiaPhotometry {
+  g?: number | null;
+  bp?: number | null;
+  rp?: number | null;
+}
+
+export interface GaiaSource {
+  catalog: string;
+  source_id: string;
+  coordinates: GaiaCoordinates;
+  astrometry: GaiaAstrometry;
+  photometry: GaiaPhotometry;
+  provenance: GaiaProvenance;
+}
+
+export interface GaiaConeSearchMetadata {
+  ra: number;
+  dec: number;
+  radius_arcsec: number;
+  magnitude_limit?: number | null;
+  limit: number;
+  total_found: number;
+  truncated: boolean;
+}
+
+export interface GaiaConeSearchResponse {
+  success: true;
+  catalog: string;
+  query: GaiaConeSearchMetadata;
+  sources: GaiaSource[];
+  separations_arcsec: number[];
+}
+
+export interface CrossMatchTarget {
+  external_id: string;
+  ra: number;
+  dec: number;
+  epoch?: number | null;
+  uncertainty_arcsec?: number | null;
+}
+
+export interface CrossMatchCandidate {
+  separation_arcsec: number;
+  separation_propagated_arcsec?: number | null;
+  source: GaiaSource;
+}
+
+export interface CrossMatchEpochInfo {
+  requested_epoch?: number | null;
+  gaia_reference_epoch: number;
+  propagated: boolean;
+  propagated_ra?: number | null;
+  propagated_dec?: number | null;
+  limitation?: string | null;
+}
+
+export interface CrossMatchResult {
+  external_id: string;
+  status: MatchStatus;
+  candidates: CrossMatchCandidate[];
+  best?: CrossMatchCandidate | null;
+  ambiguity_note?: string | null;
+  epoch: CrossMatchEpochInfo;
+}
+
+export interface CrossMatchConfig {
+  radius_arcsec?: number;
+  ambiguous_when_more_than?: number;
+  propagate_proper_motion?: boolean;
+  propagation_margin_arcsec?: number;
+}
+
+export interface CrossMatchRequest {
+  coordinates: CrossMatchTarget[];
+  config?: CrossMatchConfig;
+}
+
+export interface CrossMatchResponse {
+  success: true;
+  catalog: string;
+  config: CrossMatchConfig;
+  results: CrossMatchResult[];
+  matched: number;
+  ambiguous: number;
+  unmatched: number;
+}
+
+export interface GaiaSourceResponse {
+  success: true;
+  source: GaiaSource;
+}
+
+export interface GaiaAssociationCandidate {
+  gaia_source_id: string;
+  separation_arcsec: number;
+  separation_propagated_arcsec?: number | null;
+  source: GaiaSource;
+}
+
+export interface GaiaAssociationSignificance {
+  method: string;
+  assumptions: string[];
+  phase3_sigma_arcsec?: number | null;
+  gaia_sigma_arcsec?: number | null;
+  combined_sigma_arcsec?: number | null;
+  normalized_separation?: number | null;
+  match_p_value?: number | null;
+  limitation?: string | null;
+}
+
+export interface GaiaAssociationEpoch {
+  julian_year?: number | null;
+  basis?: string | null;
+  detection_count: number;
+  limitation?: string | null;
+}
+
+export interface SourceGaiaAssociationResponse {
+  success: true;
+  planetx_source_id: string;
+  reference_ra_deg: number;
+  reference_dec_deg: number;
+  status: MatchStatus;
+  candidates: GaiaAssociationCandidate[];
+  best?: GaiaAssociationCandidate | null;
+  ambiguity_note?: string | null;
+  config: CrossMatchConfig;
+  observation_epoch: GaiaAssociationEpoch;
+  propagation: CrossMatchEpochInfo;
+  significance: GaiaAssociationSignificance;
+  phase3?: Record<string, unknown> | null;
+  provenance?: GaiaProvenance | null;
+}
+
+export interface BandVariability {
+  band?: string | null;
+  expected_epochs: number;
+  non_detections: number;
+  metrics: VariabilityMetrics;
+}
+
+export interface SourceVariability {
+  source_id: string;
+  reference_ra_deg: number;
+  reference_dec_deg: number;
+  epoch_count: number;
+  bands: string[];
+  position_scatter_arcsec?: number | null;
+  band_metrics: BandVariability[];
+  flags: string[];
+}
+
+export interface SourceVariabilityResponse {
+  success: true;
+  source: SourceVariability;
+}
+
+export interface TargetVariabilityResponse {
+  success: true;
+  target: TargetCoordinates;
+  epochs_considered: number;
+  epochs_processed: number;
+  products_processed: number;
+  sources: SourceVariability[];
+  warnings: string[];
+}
+
+/** Search Gaia DR3 cone around coordinates */
+export async function searchGaia(params: {
+  ra: number;
+  dec: number;
+  radius_arcsec?: number;
+  magnitude_limit?: number;
+  limit?: number;
+}): Promise<GaiaConeSearchResponse> {
+  const query = new URLSearchParams({
+    ra: params.ra.toString(),
+    dec: params.dec.toString(),
+  });
+  if (params.radius_arcsec != null) query.set('radius_arcsec', params.radius_arcsec.toString());
+  if (params.magnitude_limit != null) query.set('magnitude_limit', params.magnitude_limit.toString());
+  if (params.limit != null) query.set('limit', params.limit.toString());
+
+  return request<GaiaConeSearchResponse>(`/api/v1/catalogs/gaia/search?${query.toString()}`);
+}
+
+/** Cross-match external coordinates against Gaia DR3 with proper motion propagation */
+export async function crossmatchGaia(payload: CrossMatchRequest): Promise<CrossMatchResponse> {
+  return request<CrossMatchResponse>('/api/v1/catalogs/gaia/crossmatch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Retrieve exact Gaia DR3 record by source ID */
+export async function getGaiaSource(sourceId: string): Promise<GaiaSourceResponse> {
+  return request<GaiaSourceResponse>(`/api/v1/catalogs/gaia/${encodeURIComponent(sourceId)}`);
+}
+
+/** Retrieve Gaia DR3 association for a persisted Planet X source */
+export async function getSourceGaiaAssociation(sourceId: string): Promise<SourceGaiaAssociationResponse> {
+  return request<SourceGaiaAssociationResponse>(`/api/v1/sources/${encodeURIComponent(sourceId)}/catalogs`);
+}
+
+/** Retrieve variability evidence for a persisted source */
+export async function getSourceVariability(sourceId: string): Promise<SourceVariabilityResponse> {
+  return request<SourceVariabilityResponse>(`/api/v1/sources/${encodeURIComponent(sourceId)}/variability`);
+}
+
+/** Retrieve target-level variability summary */
+export async function getTargetVariability(payload: TargetLightCurveRequest): Promise<TargetVariabilityResponse> {
+  return request<TargetVariabilityResponse>('/api/v1/targets/variability', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
 /** Helper to convert backend file paths into absolute URLs */
 export function getFileUrl(path: string): string {
   if (!path) return '';

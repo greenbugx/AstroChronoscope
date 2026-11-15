@@ -8,6 +8,8 @@ import {
   type TargetLightCurveResponse,
   type SpectralExtractionResponse,
   type SpectralComparisonResponse,
+  type SourceGaiaAssociationResponse,
+  type GaiaConeSearchResponse,
 } from "@/lib/api";
 
 export interface ScientificReportsTabProps {
@@ -26,6 +28,8 @@ export interface ScientificReportsTabProps {
   selectedSourceId: string | null;
   spectrumData?: SpectralExtractionResponse | null;
   spectralComparison?: SpectralComparisonResponse | null;
+  sourceGaiaAssociation?: SourceGaiaAssociationResponse | null;
+  gaiaConeSearchResult?: GaiaConeSearchResponse | null;
   onNavigateTab: (tab: "discovery" | "explorer" | "differential" | "timedomain" | "reports") => void;
 }
 
@@ -45,6 +49,8 @@ export default function ScientificReportsTab({
   selectedSourceId,
   spectrumData,
   spectralComparison,
+  sourceGaiaAssociation,
+  gaiaConeSearchResult,
   onNavigateTab,
 }: ScientificReportsTabProps) {
   // Section toggle state
@@ -53,6 +59,7 @@ export default function ScientificReportsTab({
   const [includeDifferential, setIncludeDifferential] = useState(true);
   const [includeTimeDomain, setIncludeTimeDomain] = useState(true);
   const [includeSpectral, setIncludeSpectral] = useState(true);
+  const [includeGaia, setIncludeGaia] = useState(true);
   const [includeProvenance, setIncludeProvenance] = useState(true);
   const [generatedTimeUtc] = useState<string>(() => new Date().toISOString().replace("T", " ").slice(0, 19));
 
@@ -130,6 +137,25 @@ export default function ScientificReportsTab({
         grid_compatible: spectralComparison.comparison.grid_compatible,
         quality: spectralComparison.comparison.quality,
       } : null,
+      gaia_dr3: {
+        source_association: sourceGaiaAssociation ? {
+          source_id: sourceGaiaAssociation.planetx_source_id,
+          status: sourceGaiaAssociation.status,
+          candidates_count: sourceGaiaAssociation.candidates?.length ?? 0,
+          best_match: sourceGaiaAssociation.best,
+          observation_epoch: sourceGaiaAssociation.observation_epoch,
+          propagation: sourceGaiaAssociation.propagation,
+          significance: sourceGaiaAssociation.significance,
+        } : null,
+        cone_search: gaiaConeSearchResult ? {
+          total_sources: gaiaConeSearchResult.query?.total_found ?? gaiaConeSearchResult.sources?.length ?? 0,
+          center_ra_deg: gaiaConeSearchResult.query?.ra,
+          center_dec_deg: gaiaConeSearchResult.query?.dec,
+          radius_arcsec: gaiaConeSearchResult.query?.radius_arcsec,
+          catalog: gaiaConeSearchResult.catalog,
+          sources: gaiaConeSearchResult.sources,
+        } : null,
+      },
     };
 
     const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" });
@@ -227,6 +253,16 @@ export default function ScientificReportsTab({
               className="accent-neutral-400"
             />
             <span className={includeSpectral ? "text-white font-bold" : "text-neutral-500"}>DR1 Spectra</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeGaia}
+              onChange={(e) => setIncludeGaia(e.target.checked)}
+              className="accent-neutral-400"
+            />
+            <span className={includeGaia ? "text-white font-bold" : "text-neutral-500"}>Gaia DR3</span>
           </label>
 
           <label className="flex items-center gap-1.5 cursor-pointer">
@@ -600,18 +636,123 @@ export default function ScientificReportsTab({
           </section>
         )}
 
-        {/* Section 6: Scientific Provenance & Reproducibility */}
+        {/* Section 6: Gaia DR3 Optical Counterpart & Astrometry */}
+        {includeGaia && (
+          <section className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-white border-b border-neutral-800 pb-1">
+              6. Gaia DR3 Optical Counterpart & Astrometric Association
+            </span>
+
+            {sourceGaiaAssociation ? (
+              <div className="flex flex-col gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                    <span className="text-[10px] text-neutral-500 uppercase">Match Status</span>
+                    <span className={`font-bold ${
+                      sourceGaiaAssociation.status === "MATCHED"
+                        ? "text-emerald-400"
+                        : sourceGaiaAssociation.status === "AMBIGUOUS"
+                          ? "text-amber-400"
+                          : "text-neutral-400"
+                    }`}>
+                      {sourceGaiaAssociation.status}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                    <span className="text-[10px] text-neutral-500 uppercase">Best Gaia DR3 ID</span>
+                    <span className="font-bold text-white truncate" title={sourceGaiaAssociation.best?.gaia_source_id ? String(sourceGaiaAssociation.best.gaia_source_id) : "None"}>
+                      {sourceGaiaAssociation.best?.gaia_source_id ? String(sourceGaiaAssociation.best.gaia_source_id) : "-"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                    <span className="text-[10px] text-neutral-500 uppercase">Angular Separation</span>
+                    <span className="font-bold text-white">
+                      {sourceGaiaAssociation.best?.separation_arcsec != null
+                        ? `${sourceGaiaAssociation.best.separation_arcsec.toFixed(3)}″`
+                        : "-"}
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                    <span className="text-[10px] text-neutral-500 uppercase">Rayleigh p-value</span>
+                    <span className="font-bold text-cyan-300">
+                      {sourceGaiaAssociation.significance?.match_p_value != null
+                        ? sourceGaiaAssociation.significance.match_p_value.toExponential(3)
+                        : "-"}
+                    </span>
+                  </div>
+                </div>
+
+                {sourceGaiaAssociation.best && (
+                  <div className="border border-neutral-800 bg-black p-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-4 text-neutral-400">
+                      <span>
+                        G Mag: <strong className="text-white">{sourceGaiaAssociation.best.source?.photometry?.g != null ? sourceGaiaAssociation.best.source.photometry.g.toFixed(2) : "-"}</strong>
+                      </span>
+                      <span>
+                        BP: <strong className="text-white">{sourceGaiaAssociation.best.source?.photometry?.bp != null ? sourceGaiaAssociation.best.source.photometry.bp.toFixed(2) : "-"}</strong>
+                      </span>
+                      <span>
+                        RP: <strong className="text-white">{sourceGaiaAssociation.best.source?.photometry?.rp != null ? sourceGaiaAssociation.best.source.photometry.rp.toFixed(2) : "-"}</strong>
+                      </span>
+                      <span>
+                        PM: <strong className="text-white">
+                          {sourceGaiaAssociation.best.source?.astrometry?.pmra_mas_yr != null && sourceGaiaAssociation.best.source?.astrometry?.pmdec_mas_yr != null
+                            ? `${sourceGaiaAssociation.best.source.astrometry.pmra_mas_yr.toFixed(1)}, ${sourceGaiaAssociation.best.source.astrometry.pmdec_mas_yr.toFixed(1)} mas/yr`
+                            : "N/A"}
+                        </strong>
+                      </span>
+                      <span>
+                        Parallax: <strong className="text-white">{sourceGaiaAssociation.best.source?.astrometry?.parallax_mas != null ? `${sourceGaiaAssociation.best.source.astrometry.parallax_mas.toFixed(2)} mas` : "N/A"}</strong>
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-neutral-500">
+                      Epoch Propagation: {sourceGaiaAssociation.propagation?.propagated ? `J2016.0 → ${sourceGaiaAssociation.observation_epoch?.julian_year ? sourceGaiaAssociation.observation_epoch.julian_year.toFixed(2) : "Obs Epoch"}` : "None"}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : gaiaConeSearchResult ? (
+              <div className="p-2.5 border border-neutral-800 bg-black text-xs flex items-center justify-between">
+                <span className="text-neutral-400">
+                  Target field cone search identified <strong className="text-white">{gaiaConeSearchResult.query?.total_found ?? gaiaConeSearchResult.sources?.length ?? 0}</strong> Gaia DR3 sources within {gaiaConeSearchResult.query?.radius_arcsec ?? 10}″.
+                </span>
+                <button
+                  onClick={() => onNavigateTab("timedomain")}
+                  className="text-blue-400 hover:text-blue-300 underline cursor-pointer text-xs"
+                >
+                  View in Time-Domain
+                </button>
+              </div>
+            ) : (
+              <div className="p-3 border border-neutral-800 bg-black text-xs text-neutral-500">
+                Gaia DR3 counterpart cross-match not yet queried for the active source.
+                <button
+                  onClick={() => onNavigateTab("timedomain")}
+                  className="ml-2 text-blue-400 underline cursor-pointer"
+                >
+                  Cross-Match with Gaia DR3
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Section 7: Scientific Provenance & Reproducibility */}
         {includeProvenance && (
           <section className="flex flex-col gap-1.5 pt-3 border-t border-neutral-800 text-[10px] text-neutral-400">
             <span className="font-bold uppercase tracking-wider text-neutral-300">
-              6. Provenance & Computational Stack
+              7. Provenance & Computational Stack
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               <div>
                 Software: AstroChronoscope 0.1.0 · Astropy · PyWCS · Reproject · Photutils
               </div>
               <div className="sm:text-right">
-                Archive: NASA/IPAC IRSA SIA2 (SPHEREx QR3)
+                Archives: NASA/IPAC IRSA SIA2 (SPHEREx QR3) · ESA Gaia DR3 (I/355/gaiadr3)
               </div>
             </div>
           </section>

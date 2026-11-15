@@ -8,6 +8,8 @@ import {
   getTargetLightCurve,
   extractSpectrum,
   compareSpectra,
+  searchGaia,
+  getSourceGaiaAssociation,
   type BackendHealthResponse,
   type TimelineResponse,
   type TimelineProduct,
@@ -18,6 +20,8 @@ import {
   type SpectralExtractionResponse,
   type SpectralComparisonResponse,
   type SpectralExtractionRequest,
+  type GaiaConeSearchResponse,
+  type SourceGaiaAssociationResponse,
 } from "@/lib/api";
 
 import DiscoveryTab from "./tabs/DiscoveryTab";
@@ -117,6 +121,15 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   const [spectralComparison, setSpectralComparison] = useState<SpectralComparisonResponse | null>(null);
   const [isSpectralComparing, setIsSpectralComparing] = useState(false);
   const [spectralComparisonError, setSpectralComparisonError] = useState<string | null>(null);
+
+  // Gaia DR3 State (Phase 5)
+  const [gaiaConeSearchResult, setGaiaConeSearchResult] = useState<GaiaConeSearchResponse | null>(null);
+  const [isGaiaSearching, setIsGaiaSearching] = useState(false);
+  const [gaiaSearchError, setGaiaSearchError] = useState<string | null>(null);
+
+  const [sourceGaiaAssociation, setSourceGaiaAssociation] = useState<SourceGaiaAssociationResponse | null>(null);
+  const [isGaiaAssociating, setIsGaiaAssociating] = useState(false);
+  const [sourceGaiaError, setSourceGaiaError] = useState<string | null>(null);
 
   // Synchronize Backend Health on Mount
   useEffect(() => {
@@ -387,6 +400,52 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     []
   );
 
+  // Gaia DR3 Cone Search (Phase 5)
+  const handleSearchGaia = useCallback(
+    async (customRadiusArcsec?: number, customMagLimit?: number, customLimit?: number) => {
+      const raNum = parseFloat(ra);
+      const decNum = parseFloat(dec);
+      if (isNaN(raNum) || isNaN(decNum)) {
+        setGaiaSearchError("Invalid celestial coordinates");
+        return;
+      }
+      try {
+        setIsGaiaSearching(true);
+        setGaiaSearchError(null);
+        const res = await searchGaia({
+          ra: raNum,
+          dec: decNum,
+          radius_arcsec: customRadiusArcsec || 10,
+          magnitude_limit: customMagLimit,
+          limit: customLimit || 50,
+        });
+        setGaiaConeSearchResult(res);
+      } catch (err) {
+        setGaiaSearchError(err instanceof Error ? err.message : "Gaia cone search failed");
+      } finally {
+        setIsGaiaSearching(false);
+      }
+    },
+    [ra, dec]
+  );
+
+  // Source Gaia DR3 Association (Phase 5)
+  const handleAssociateGaia = useCallback(
+    async (sourceId: string) => {
+      try {
+        setIsGaiaAssociating(true);
+        setSourceGaiaError(null);
+        const res = await getSourceGaiaAssociation(sourceId);
+        setSourceGaiaAssociation(res);
+      } catch (err) {
+        setSourceGaiaError(err instanceof Error ? err.message : "Gaia source association failed");
+      } finally {
+        setIsGaiaAssociating(false);
+      }
+    },
+    []
+  );
+
   // Flattened array of all discovered products
   const availableProducts: TimelineProduct[] =
     timelineData?.epochs.flatMap((epoch) => epoch.products) ?? [];
@@ -651,6 +710,12 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             spectralComparison={spectralComparison}
             isSpectralComparing={isSpectralComparing}
             spectralComparisonError={spectralComparisonError}
+            sourceGaiaAssociation={sourceGaiaAssociation}
+            isGaiaAssociating={isGaiaAssociating}
+            sourceGaiaError={sourceGaiaError}
+            gaiaConeSearchResult={gaiaConeSearchResult}
+            isGaiaSearching={isGaiaSearching}
+            gaiaSearchError={gaiaSearchError}
             onExtractLightCurve={(maxObs, thresholdSigma, band) => {
               void handleExtractLightCurve(maxObs, thresholdSigma, band);
             }}
@@ -661,6 +726,8 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             onCompareSpectra={(specIdA, specIdB) => {
               void handleCompareSpectra(specIdA, specIdB);
             }}
+            onSearchGaia={handleSearchGaia}
+            onAssociateGaia={handleAssociateGaia}
             onNavigateTab={(tab) => setActiveNavTab(tab)}
           />
         )}
@@ -683,6 +750,8 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             selectedSourceId={selectedSourceId}
             spectrumData={spectrumData}
             spectralComparison={spectralComparison}
+            sourceGaiaAssociation={sourceGaiaAssociation}
+            gaiaConeSearchResult={gaiaConeSearchResult}
             onNavigateTab={(tab) => setActiveNavTab(tab)}
           />
         )}
