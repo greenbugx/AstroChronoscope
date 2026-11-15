@@ -23,11 +23,22 @@ AstroChronoscope/
 │   ├── tests/          # Pytest test suite
 │   ├── storage/        # Local cache for FITS cutouts and generated previews
 │   └── docs/           # Backend integration documentation
+├── docs/               # In-depth system and scientific documentation
 ├── tests/              # Frontend unit tests
 ├── index.html
 ├── package.json
 └── vite.config.ts
 ```
+
+## Documentation
+
+Detailed documentation is available in the [`docs/`](docs/) directory:
+
+- [System Architecture](docs/ARCHITECTURE.md): Architecture overview, state flow, and archive integrations.
+- [Detailed Features](docs/FEATURES.md): In-depth walkthrough of all six mission workspaces and capabilities.
+- [API Reference](docs/API_REFERENCE.md): REST API contracts, endpoints, schemas, and file delivery.
+- [Scientific Pipeline](docs/SCIENTIFIC_PIPELINE.md): Methodologies for WCS, differential subtraction, photometry, spectra, and Gaia cross-matching.
+- [NASA Benchmark Targets](docs/BENCHMARK_TARGETS.md): Reference parameters and space-motion propagation for challenge targets.
 
 ## Getting Started
 
