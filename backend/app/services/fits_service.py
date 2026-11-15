@@ -166,7 +166,10 @@ def download_fits(
             log.warning("fits_download_retry", extra={"url": url, "attempt": attempt, "delay_s": delay, "error": str(exc)})
             time.sleep(delay)
         finally:
-            temp_path.unlink(missing_ok=True)
+            try:
+                temp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     if isinstance(last_error, (IrsaUnavailableError, IrsaTimeoutError)):
         raise CutoutUnavailableError(

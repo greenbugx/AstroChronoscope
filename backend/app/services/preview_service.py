@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 import threading
+import uuid
 from pathlib import Path
 
 import matplotlib
@@ -34,12 +36,18 @@ def generate_preview(fits_path: Path | str, output_path: Path | str | None = Non
     output = Path(output_path) if output_path is not None else fits_path.with_suffix(".png")
     output.parent.mkdir(parents=True, exist_ok=True)
 
+    if output.is_file() and _is_png(output):
+        return output
+
     image = extract_science_image(fits_path)
     _render_png(image, output, settings)
     return output
 
 
 def _render_png(image: ScienceImage, output: Path, settings: Settings) -> None:
+    if output.is_file() and _is_png(output):
+        return
+
     data = image.data
     finite = data[np.isfinite(data)]
     if finite.size == 0:
@@ -65,20 +73,36 @@ def _render_png(image: ScienceImage, output: Path, settings: Settings) -> None:
     axes.set_axis_off()
     axes.imshow(masked, origin="lower", cmap=cmap, norm=norm, interpolation="nearest", aspect="equal")
 
-    temp = output.with_suffix(output.suffix + ".part")
+    buf = io.BytesIO()
     try:
         with _RENDER_LOCK:
-            figure.savefig(temp, format="png", dpi=_DPI, facecolor="black")
-        if not _is_png(temp):
-            raise PreviewGenerationError("Rendered preview is not a valid PNG")
-        os.replace(temp, output)
-    except PreviewGenerationError:
-        raise
+            figure.savefig(buf, format="png", dpi=_DPI, facecolor="black")
     except Exception as exc:
         raise PreviewGenerationError("Could not render the preview PNG", details={"error": str(exc)}) from exc
     finally:
-        temp.unlink(missing_ok=True)
         figure.clear()
+
+    png_bytes = buf.getvalue()
+    if len(png_bytes) < 8 or png_bytes[:8] != b"\x89PNG\r\n\x1a\n":
+        raise PreviewGenerationError("Rendered preview is not a valid PNG")
+
+    if output.is_file() and _is_png(output):
+        return
+
+    temp = output.with_name(f"{output.stem}.{uuid.uuid4().hex}.part")
+    try:
+        temp.write_bytes(png_bytes)
+        os.replace(temp, output)
+    except PermissionError:
+        if not (output.is_file() and _is_png(output)):
+            raise PreviewGenerationError("Could not write preview PNG", details={"target": str(output)})
+    except Exception as exc:
+        raise PreviewGenerationError("Could not render the preview PNG", details={"error": str(exc)}) from exc
+    finally:
+        try:
+            temp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     log.info("preview_generated", extra={"path": str(output), "vmin": vmin, "vmax": vmax, "shape": [image.height, image.width]})
 

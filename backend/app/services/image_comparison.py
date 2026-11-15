@@ -24,6 +24,7 @@ import os
 import platform
 import re
 import threading
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -1194,12 +1195,15 @@ def _artifact_name(key: str, kind: str, suffix: str) -> str:
 
 def _write_primary(path: Path, data: np.ndarray, header: fits.Header) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(path.suffix + ".part")
+    temp = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.part")
     try:
         fits.PrimaryHDU(data=data, header=header).writeto(temp, overwrite=True, output_verify="silentfix")
         os.replace(temp, path)
     finally:
-        temp.unlink(missing_ok=True)
+        try:
+            temp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _card(value: str | None) -> str:
