@@ -6,6 +6,8 @@ import {
   type InspectResponse,
   type ComparisonResponse,
   type TargetLightCurveResponse,
+  type SpectralExtractionResponse,
+  type SpectralComparisonResponse,
 } from "@/lib/api";
 
 export interface ScientificReportsTabProps {
@@ -22,6 +24,8 @@ export interface ScientificReportsTabProps {
   comparisonResult: ComparisonResponse | null;
   lightCurveData: TargetLightCurveResponse | null;
   selectedSourceId: string | null;
+  spectrumData?: SpectralExtractionResponse | null;
+  spectralComparison?: SpectralComparisonResponse | null;
   onNavigateTab: (tab: "discovery" | "explorer" | "differential" | "timedomain" | "reports") => void;
 }
 
@@ -39,6 +43,8 @@ export default function ScientificReportsTab({
   comparisonResult,
   lightCurveData,
   selectedSourceId,
+  spectrumData,
+  spectralComparison,
   onNavigateTab,
 }: ScientificReportsTabProps) {
   // Section toggle state
@@ -46,6 +52,7 @@ export default function ScientificReportsTab({
   const [includeInspection, setIncludeInspection] = useState(true);
   const [includeDifferential, setIncludeDifferential] = useState(true);
   const [includeTimeDomain, setIncludeTimeDomain] = useState(true);
+  const [includeSpectral, setIncludeSpectral] = useState(true);
   const [includeProvenance, setIncludeProvenance] = useState(true);
   const [generatedTimeUtc] = useState<string>(() => new Date().toISOString().replace("T", " ").slice(0, 19));
 
@@ -102,6 +109,26 @@ export default function ScientificReportsTab({
           variability_metrics: metrics,
           measurements_count: activeSeries?.points?.length ?? 0,
         } : null,
+      } : null,
+      spectra: spectrumData?.spectrum ? {
+        spectrum_id: spectrumData.spectrum.spectrum_id,
+        collection: spectrumData.spectrum.collection,
+        product_id: spectrumData.spectrum.product_id,
+        valid_channels: spectrumData.spectrum.valid_channel_count,
+        total_channels: spectrumData.spectrum.channel_count,
+        wavelength_min_um: spectrumData.spectrum.wavelength_min_um,
+        wavelength_max_um: spectrumData.spectrum.wavelength_max_um,
+        quality: spectrumData.spectrum.quality,
+        provenance: spectrumData.provenance,
+        limitations: spectrumData.spectrum.limitations,
+      } : null,
+      spectral_comparison: spectralComparison?.comparison ? {
+        spectrum_id_a: spectralComparison.comparison.spectrum_id_a,
+        spectrum_id_b: spectralComparison.comparison.spectrum_id_b,
+        basis: spectralComparison.comparison.comparison_basis,
+        overlap_channels: spectralComparison.comparison.overlap_channel_count,
+        grid_compatible: spectralComparison.comparison.grid_compatible,
+        quality: spectralComparison.comparison.quality,
       } : null,
     };
 
@@ -206,6 +233,16 @@ export default function ScientificReportsTab({
               className="accent-purple-500"
             />
             <span className={includeTimeDomain ? "text-white" : "text-neutral-500"}>Time-Domain</span>
+          </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeSpectral}
+              onChange={(e) => setIncludeSpectral(e.target.checked)}
+              className="accent-purple-500"
+            />
+            <span className={includeSpectral ? "text-white" : "text-neutral-500"}>DR1 Spectra</span>
           </label>
 
           <label className="flex items-center gap-1.5 cursor-pointer">
@@ -546,11 +583,78 @@ export default function ScientificReportsTab({
           </section>
         )}
 
-        {/* Section 5: Scientific Provenance & Reproducibility */}
+        {/* Section 5: SPHEREx DR1 Cube Spectral Findings */}
+        {includeSpectral && (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-neutral-800/80 pb-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400">
+                5. SPHEREx DR1 Cube 102-Channel Spectral Profile
+              </h3>
+              <span className="text-[10px] text-neutral-500 uppercase">Phase 4 Spectral Extraction</span>
+            </div>
+
+            {spectrumData?.spectrum ? (
+              <div className="flex flex-col gap-3 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded border border-neutral-900 bg-neutral-950/60 flex flex-col gap-1">
+                    <span className="text-[10px] text-neutral-500 uppercase">Operational Channels</span>
+                    <span className="font-bold text-emerald-400">
+                      {spectrumData.spectrum.valid_channel_count} / {spectrumData.spectrum.channel_count} Valid
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded border border-neutral-900 bg-neutral-950/60 flex flex-col gap-1">
+                    <span className="text-[10px] text-neutral-500 uppercase">Spectral Span</span>
+                    <span className="font-bold text-white">
+                      {spectrumData.spectrum.wavelength_min_um?.toFixed(3) ?? "0.750"} - {spectrumData.spectrum.wavelength_max_um?.toFixed(3) ?? "5.000"} µm
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded border border-neutral-900 bg-neutral-950/60 flex flex-col gap-1">
+                    <span className="text-[10px] text-neutral-500 uppercase">HEALPix Spatial Tile</span>
+                    <span className="font-bold text-white">
+                      Order {spectrumData.provenance.order ?? 5}, NPIX {spectrumData.provenance.npix ?? "9621"}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded border border-neutral-900 bg-neutral-950/60 flex flex-col gap-1">
+                    <span className="text-[10px] text-neutral-500 uppercase">Calibration Unit</span>
+                    <span className="font-bold text-cyan-300">
+                      MJy/sr (Surface Brightness)
+                    </span>
+                  </div>
+                </div>
+
+                {spectralComparison?.comparison && (
+                  <div className="p-3 rounded border border-amber-500/30 bg-amber-950/20 text-xs flex items-center justify-between">
+                    <span className="text-amber-300 font-bold uppercase">
+                      Pairwise Spectral Differential Comparison
+                    </span>
+                    <span className="text-neutral-300">
+                      Basis: <strong className="text-white">{spectralComparison.comparison.comparison_basis}</strong> · Overlap: <strong className="text-emerald-400">{spectralComparison.comparison.overlap_channel_count} Channels</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded border border-dashed border-neutral-800 text-xs text-neutral-500 text-center">
+                DR1 all-sky cube spectrum not yet extracted for this target.
+                <button
+                  onClick={() => onNavigateTab("timedomain")}
+                  className="ml-2 text-purple-400 underline cursor-pointer"
+                >
+                  Extract Spectrum in Time-Domain Workspace
+                </button>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Section 6: Scientific Provenance & Reproducibility */}
         {includeProvenance && (
           <section className="flex flex-col gap-2 pt-4 border-t border-neutral-800/80 text-[10px] text-neutral-500">
             <span className="font-bold uppercase tracking-wider text-neutral-400">
-              Scientific Provenance & Audit Trail
+              6. Scientific Provenance & Audit Trail
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div>

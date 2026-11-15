@@ -692,9 +692,197 @@ export interface StorageTelemetryResponse {
     comparisons: StorageDirectoryTelemetry;
     sources: StorageDirectoryTelemetry;
     lightcurves: StorageDirectoryTelemetry;
+    spectra?: StorageDirectoryTelemetry;
     total_files: number;
     total_size_bytes: number;
   };
+}
+
+// =============================================================================
+// PHASE 4: SPHEREx DR1 Spectral Cube Contracts
+// =============================================================================
+
+export type SpectralQuality = "PASS" | "WARNING" | "FAIL" | "NOT_VERIFIED";
+export type WavelengthUnit = "um";
+export type FluxUnit = "MJy/sr";
+export type FluxKind = "surface_brightness";
+
+export interface SpectralExtractionConfig {
+  spatial_method?: "bilinear" | "nearest";
+}
+
+export interface SpectralExtractionRequest {
+  source_id?: string;
+  ra?: number;
+  dec?: number;
+  collection?: string;
+  config?: SpectralExtractionConfig;
+}
+
+export interface SpectralChannel {
+  index: number;
+  detector?: number | null;
+  subchan?: number | null;
+  wavelength_um?: number | null;
+  wl_min_um?: number | null;
+  wl_max_um?: number | null;
+  bandwidth_um?: number | null;
+  resolving_power?: number | null;
+  flux_mjy_sr?: number | null;
+  uncertainty_mjy_sr?: number | null;
+  nhits?: number | null;
+  flags?: number | null;
+  flags_applied: string[];
+  quality: SpectralQuality;
+}
+
+export interface SpectralQualitySummary {
+  overall_status: SpectralQuality;
+  uncertainty_status: SpectralQuality;
+  warnings: string[];
+}
+
+export interface Spectrum {
+  spectrum_id: string;
+  source_id?: string | null;
+  product_type: "spherex_dr1_all_sky_cube";
+  collection: string;
+  product_id: string;
+  obs_id?: string | null;
+  obs_publisher_did?: string | null;
+  ra_deg: number;
+  dec_deg: number;
+  pixel_x?: number | null;
+  pixel_y?: number | null;
+  wavelength_unit: WavelengthUnit;
+  flux_unit: FluxUnit;
+  flux_kind: FluxKind;
+  extraction_method: "cube_point_extraction";
+  channel_count: number;
+  valid_channel_count: number;
+  blank_channels: number[];
+  wavelength_min_um?: number | null;
+  wavelength_max_um?: number | null;
+  channels: SpectralChannel[];
+  quality: SpectralQualitySummary;
+  limitations: string[];
+}
+
+export interface SpectralProvenance {
+  created_at: string;
+  software: Record<string, string>;
+  algorithm: string;
+  algorithm_version: string;
+  collection: string;
+  access_url: string;
+  fits_sha256: string;
+  npix?: number | null;
+  order?: number | null;
+  config: Record<string, unknown>;
+}
+
+export interface SpectralExtractionResponse {
+  success: true;
+  spectrum: Spectrum;
+  provenance: SpectralProvenance;
+}
+
+export interface SpectralComparisonConfig {
+  min_overlap_channels?: number;
+  wavelength_tolerance_um?: number;
+}
+
+export interface SpectralComparisonRequest {
+  spectrum_id_a: string;
+  spectrum_id_b: string;
+  config?: SpectralComparisonConfig;
+}
+
+export interface SpectralComparisonChannel {
+  index_a: number;
+  index_b: number;
+  wavelength_um?: number | null;
+  flux_a_mjy_sr?: number | null;
+  flux_b_mjy_sr?: number | null;
+  difference_mjy_sr?: number | null;
+  ratio?: number | null;
+  quality: SpectralQuality;
+}
+
+export interface SpectralComparison {
+  spectrum_id_a: string;
+  spectrum_id_b: string;
+  product_id_a?: string | null;
+  product_id_b?: string | null;
+  comparison_basis:
+    | "same_spectrum"
+    | "same_product_static_mosaic"
+    | "different_products_static_mosaic"
+    | "unknown";
+  grid_compatible: boolean;
+  wavelength_unit: WavelengthUnit;
+  flux_unit: FluxUnit;
+  overlap_channel_count: number;
+  channels: SpectralComparisonChannel[];
+  quality: SpectralQualitySummary;
+  warnings: string[];
+  limitations: string[];
+  algorithm_version: string;
+  created_at?: string | null;
+}
+
+export interface SpectralComparisonResponse {
+  success: true;
+  comparison: SpectralComparison;
+}
+
+export interface SpectralSummary {
+  spectrum_id: string;
+  source_id?: string | null;
+  collection: string;
+  product_id: string;
+  ra_deg: number;
+  dec_deg: number;
+  valid_channel_count: number;
+  channel_count: number;
+  wavelength_min_um?: number | null;
+  wavelength_max_um?: number | null;
+  quality: SpectralQuality;
+  created_at: string;
+}
+
+export interface SourceSpectraResponse {
+  success: true;
+  source_id: string;
+  spectra: SpectralSummary[];
+}
+
+/** Extract a calibrated 102-channel 1D spectrum from SPHEREx DR1 all-sky cube at coordinates or source */
+export async function extractSpectrum(payload: SpectralExtractionRequest): Promise<SpectralExtractionResponse> {
+  return request<SpectralExtractionResponse>('/api/v1/spectra/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Compare two extracted cube spectra on matched wavelength grid */
+export async function compareSpectra(payload: SpectralComparisonRequest): Promise<SpectralComparisonResponse> {
+  return request<SpectralComparisonResponse>('/api/v1/spectra/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Retrieve a persisted spectrum record by ID */
+export async function getSpectrum(spectrumId: string): Promise<SpectralExtractionResponse> {
+  return request<SpectralExtractionResponse>(`/api/v1/spectra/${encodeURIComponent(spectrumId)}`);
+}
+
+/** Retrieve all cube spectra associated with a source */
+export async function getSourceSpectra(sourceId: string): Promise<SourceSpectraResponse> {
+  return request<SourceSpectraResponse>(`/api/v1/sources/${encodeURIComponent(sourceId)}/spectra`);
 }
 
 /** Retrieve observatory storage and cache telemetry */

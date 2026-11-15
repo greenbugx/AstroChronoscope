@@ -6,6 +6,8 @@ import {
   inspectImage,
   compareImages,
   getTargetLightCurve,
+  extractSpectrum,
+  compareSpectra,
   type BackendHealthResponse,
   type TimelineResponse,
   type TimelineProduct,
@@ -13,6 +15,9 @@ import {
   type ComparisonResponse,
   type InspectResponse,
   type TargetLightCurveResponse,
+  type SpectralExtractionResponse,
+  type SpectralComparisonResponse,
+  type SpectralExtractionRequest,
 } from "@/lib/api";
 
 import DiscoveryTab from "./tabs/DiscoveryTab";
@@ -20,6 +25,7 @@ import ImageExplorerTab from "./tabs/ImageExplorerTab";
 import DifferentialAnalysisTab from "./tabs/DifferentialAnalysisTab";
 import TimeDomainAnalysisTab from "./tabs/TimeDomainAnalysisTab";
 import ScientificReportsTab from "./tabs/ScientificReportsTab";
+import JobMonitor from "./JobMonitor";
 
 interface DashboardProps {
   onReturnToLanding: () => void;
@@ -36,7 +42,7 @@ const BENCHMARK_TARGET = {
   collection: "spherex_qr3",
 };
 
-export type ActiveNavTab = "discovery" | "explorer" | "differential" | "timedomain" | "reports";
+export type ActiveNavTab = "discovery" | "explorer" | "differential" | "timedomain" | "reports" | "jobs";
 
 export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   // Mission Clock
@@ -102,6 +108,15 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   const [lightCurveData, setLightCurveData] = useState<TargetLightCurveResponse | null>(null);
   const [lightCurveError, setLightCurveError] = useState<string | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
+
+  // Spectral State (Phase 4)
+  const [spectrumData, setSpectrumData] = useState<SpectralExtractionResponse | null>(null);
+  const [isSpectrumLoading, setIsSpectrumLoading] = useState(false);
+  const [spectrumError, setSpectrumError] = useState<string | null>(null);
+
+  const [spectralComparison, setSpectralComparison] = useState<SpectralComparisonResponse | null>(null);
+  const [isSpectralComparing, setIsSpectralComparing] = useState(false);
+  const [spectralComparisonError, setSpectralComparisonError] = useState<string | null>(null);
 
   // Synchronize Backend Health on Mount
   useEffect(() => {
@@ -310,6 +325,68 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     [ra, dec, radius, cutoutSize]
   );
 
+  // Spectral Extraction Handler (Phase 4)
+  const handleExtractSpectrum = useCallback(
+    async (
+      targetSourceId?: string,
+      customRa?: number,
+      customDec?: number,
+      method: "bilinear" | "nearest" = "bilinear"
+    ) => {
+      const raNum = customRa ?? parseFloat(ra);
+      const decNum = customDec ?? parseFloat(dec);
+
+      if (isNaN(raNum) || isNaN(decNum)) {
+        setSpectrumError("Target coordinates must be valid floating point values.");
+        return;
+      }
+
+      try {
+        setIsSpectrumLoading(true);
+        setSpectrumError(null);
+
+        const payload: SpectralExtractionRequest = {
+          config: { spatial_method: method },
+        };
+        if (targetSourceId) {
+          payload.source_id = targetSourceId;
+        } else {
+          payload.ra = raNum;
+          payload.dec = decNum;
+        }
+
+        const res = await extractSpectrum(payload);
+        setSpectrumData(res);
+      } catch (err) {
+        setSpectrumError(err instanceof Error ? err.message : "Spectral cube extraction failed");
+      } finally {
+        setIsSpectrumLoading(false);
+      }
+    },
+    [ra, dec]
+  );
+
+  // Spectral Comparison Handler (Phase 4)
+  const handleCompareSpectra = useCallback(
+    async (spectrumIdA: string, spectrumIdB: string) => {
+      try {
+        setIsSpectralComparing(true);
+        setSpectralComparisonError(null);
+
+        const res = await compareSpectra({
+          spectrum_id_a: spectrumIdA,
+          spectrum_id_b: spectrumIdB,
+        });
+        setSpectralComparison(res);
+      } catch (err) {
+        setSpectralComparisonError(err instanceof Error ? err.message : "Spectral comparison failed");
+      } finally {
+        setIsSpectralComparing(false);
+      }
+    },
+    []
+  );
+
   // Flattened array of all discovered products
   const availableProducts: TimelineProduct[] =
     timelineData?.epochs.flatMap((epoch) => epoch.products) ?? [];
@@ -480,6 +557,20 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             >
               Scientific Reports
             </button>
+
+            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
+
+            {/* Tab 6: Job Monitor */}
+            <button
+              onClick={() => setActiveNavTab("jobs")}
+              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                activeNavTab === "jobs"
+                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
+                  : "text-[#3896e6] hover:text-sky-200"
+              }`}
+            >
+              Job Monitor
+            </button>
           </div>
         </div>
       </nav>
@@ -600,10 +691,22 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             isLoading={isLightCurveLoading}
             error={lightCurveError}
             selectedSourceId={selectedSourceId}
+            spectrumData={spectrumData}
+            isExtractingSpectrum={isSpectrumLoading}
+            spectrumError={spectrumError}
+            spectralComparison={spectralComparison}
+            isSpectralComparing={isSpectralComparing}
+            spectralComparisonError={spectralComparisonError}
             onExtractLightCurve={(maxObs, thresholdSigma, band) => {
               void handleExtractLightCurve(maxObs, thresholdSigma, band);
             }}
             onSelectSourceId={(sId) => setSelectedSourceId(sId)}
+            onExtractSpectrum={(sourceId, customRa, customDec, method) => {
+              void handleExtractSpectrum(sourceId, customRa, customDec, method);
+            }}
+            onCompareSpectra={(specIdA, specIdB) => {
+              void handleCompareSpectra(specIdA, specIdB);
+            }}
             onNavigateTab={(tab) => setActiveNavTab(tab)}
           />
         )}
@@ -624,9 +727,14 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             comparisonResult={comparisonResult}
             lightCurveData={lightCurveData}
             selectedSourceId={selectedSourceId}
+            spectrumData={spectrumData}
+            spectralComparison={spectralComparison}
             onNavigateTab={(tab) => setActiveNavTab(tab)}
           />
         )}
+
+        {/* WORKSPACE 6: OBSERVATORY JOB MONITOR */}
+        {activeNavTab === "jobs" && <JobMonitor />}
       </main>
     </div>
   );
