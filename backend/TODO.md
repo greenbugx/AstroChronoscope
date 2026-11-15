@@ -376,3 +376,54 @@ Single source of truth for backend progress. Updated at the end of each phase.
 - **Known limitation (unchanged).** PSF matching is a global Gaussian approximation;
   spatially varying PSFs and empirical-kernel resampling are unsupported. Variance
   propagation is per-pixel only; output covariance is not computed.
+
+## O. Phase 5 — Gaia DR3 Catalog Integration (2026-11-15, on merged Phase 3/4 base)
+
+- [x] Investigate the backend architecture and the official Gaia Archive interface
+      before implementation (research in `docs/GAIA_INTEGRATION_RESEARCH.md`, every
+      fact verified live against `gea.esac.esa.int` TAP on 2026-11-15).
+- [x] Implement the Gaia TAP client with centralized, validated ADQL construction
+      (no user string ever interpolated), Retry session, timeout and error mapping.
+- [x] Cone search with coordinate/radius/magnitude/limit validation and spherical
+      separation (haversine, verified against Astropy).
+- [x] Normalize catalog responses: units preserved, missing values `null` (never 0),
+      `source_id` as string, provenance on every record, reference epoch J2016.0.
+- [x] Cross-matching: configurable radius, MATCHED/AMBIGUOUS/UNMATCHED, ambiguity
+      never forced; optional proper-motion epoch propagation via Astropy
+      `apply_space_motion` (`pmra` = μα\*) with explicit limitation reporting.
+- [x] REST endpoints `GET /api/v1/catalogs/gaia/search`,
+      `POST /api/v1/catalogs/gaia/crossmatch`, `GET /api/v1/catalogs/gaia/{source_id}`.
+- [x] Caching via the existing TTL `CacheStore` (additive `gaia` cache).
+- [x] Mocked deterministic tests for client, service, cross-match and API paths.
+- [x] Integrated on top of merged Phase 3 (source catalogue) and Phase 4 (spectra)
+      upstream master; Phase 3 source-level Gaia association and
+      `GET /api/v1/sources/{source_id}/catalogs` added (see
+      `docs/PHASE5_POST_PHASE3_PHASE4_INTEGRATION.md`).
+- [ ] `POST /api/v1/sources/{source_id}/catalogs/gaia/match` — deferred: the
+      association endpoint computes matches on demand and light curves/variability
+      rebuild source records; no separate persistent association store yet.
+
+## Validation log (2026-11-15, Phase 5 Gaia integration)
+
+- **Live interface.** Sync TAP verified: form-encoded
+  `REQUEST=doQuery, LANG=ADQL, FORMAT=json`; success body
+  `{"metadata": [...], "data": [[...]]}`; ADQL parse errors → HTTP 400 with VOTable
+  `QUERY_STATUS=ERROR`; anonymous access confirmed; async UWS `/tap/async` job
+  creation verified (documented, not implemented). `ref_epoch = 2016.0` confirmed in
+  real rows; `pmra` unit `mas.yr**-1` including cos δ confirmed via `TAP_SCHEMA`.
+- **Live smoke test.** Cone search at (156.09328159, −41.64466331) r=60″ returned
+  5 fully normalized DR3 sources; `get_source` round-trip matched.
+- **Separation correctness.** Haversine equals `astropy SkyCoord.separation` on
+  wraparound and near-pole cases (RA 0→90° at dec 89.9° ≈ 509″; RA 0→180° at
+  dec 89.99° ≈ 72″ — Euclidean would give ~324000″ and 648000″).
+- **Epoch propagation.** Astropy 8.0.2 `apply_space_motion` verified with and without
+  parallax distance (ERFA `pmsafe` "distance overridden" warning suppressed in code);
+  an epoch-shifted fast mover (pmra=−1440 mas/yr) is matched via propagation.
+- **Phase 3/4 integration.** Merged upstream master (e1b6146 + ad585cf) into the
+  Phase 5 branch; Phase 3 source records (32-hex internal ids, storage/sources/*.json)
+  power `GET /sources/{id}/catalogs`; Phase 4 spectra unchanged, uncertainty stays
+  `NOT_VERIFIED`; Gaia photometry is never mixed with SPHEREx flux.
+- **Frontend.** Upstream frontend changes arrive only via the upstream merge; no
+  frontend file was authored or modified by Phase 5 work.
+- **Dependencies.** None added or changed for Phase 5 (Astropy/requests reuse
+  existing pins).

@@ -67,6 +67,62 @@ class IrsaResponseError(PlanetXError):
     status_code = 502
 
 
+class GaiaTimeoutError(PlanetXError):
+    """Gaia Archive TAP request timed out."""
+
+    code = "GAIA_TIMEOUT"
+    status_code = 504
+
+
+class GaiaUnavailableError(PlanetXError):
+    """Gaia Archive is unreachable or temporarily unavailable."""
+
+    code = "GAIA_UNAVAILABLE"
+    status_code = 503
+
+
+class GaiaHttpError(PlanetXError):
+    """Gaia Archive returned an HTTP error."""
+
+    code = "GAIA_HTTP_ERROR"
+    status_code = 502
+
+
+class GaiaQueryError(PlanetXError):
+    """Gaia Archive rejected the ADQL query."""
+
+    code = "GAIA_QUERY_ERROR"
+    status_code = 502
+
+
+class GaiaResponseError(PlanetXError):
+    """Gaia Archive returned an unparseable response."""
+
+    code = "GAIA_INVALID_RESPONSE"
+    status_code = 502
+
+
+class GaiaSourceNotFoundError(PlanetXError):
+    """No Gaia DR3 record exists for that source identifier."""
+
+    code = "GAIA_SOURCE_NOT_FOUND"
+    status_code = 404
+
+
+class InvalidGaiaSourceIdError(PlanetXError):
+    """The requested source identifier is not a valid Gaia source_id."""
+
+    code = "INVALID_GAIA_SOURCE_ID"
+    status_code = 400
+
+
+class GaiaRateLimitError(PlanetXError):
+    """Gaia Archive asked the client to back off (429)."""
+
+    code = "GAIA_RATE_LIMITED"
+    status_code = 503
+
+
 class ObservationNotFoundError(PlanetXError):
     code = "OBSERVATION_NOT_FOUND"
     status_code = 404
