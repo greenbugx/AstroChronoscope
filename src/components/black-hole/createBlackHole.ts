@@ -129,6 +129,7 @@ export async function createBlackHole(
       material.dispose();
       noiseTexture.dispose();
       starsTexture.dispose();
+      cachedTexturesPromise = null;
       postProcessing.dispose?.();
       renderer.dispose();
     },

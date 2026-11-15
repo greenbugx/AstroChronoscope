@@ -29,6 +29,7 @@ function App() {
   const navigateToDashboard = () => {
     window.history.pushState(null, "", "/dashboard");
     setCurrentRoute("dashboard");
+    setIsBlackHoleReady(false);
   };
 
   const navigateToLanding = () => {
@@ -39,25 +40,25 @@ function App() {
   return (
     <>
       {/* 
-        Persistent Black Hole Background:
-        Kept mounted so the WebGPU renderer, textures, and geometry 
-        remain cached in GPU memory when navigating between landing and dashboard.
+        Black Hole Background:
+        Only mounted on the home / landing page. Unmounted when on dashboard
+        so the WebGPU / WebGL animation loop, shaders, and resources are fully
+        disposed and do not lag the dashboard in the background.
       */}
-      <div
-        className={`fixed inset-0 bg-black transition-opacity duration-700 ${currentRoute === "dashboard"
-          ? "opacity-0 pointer-events-none"
-          : isBlackHoleReady
-            ? "opacity-100"
-            : "opacity-0"
+      {currentRoute === "landing" && (
+        <div
+          className={`fixed inset-0 bg-black transition-opacity duration-700 ${
+            isBlackHoleReady ? "opacity-100" : "opacity-0"
           }`}
-      >
-        <Suspense fallback={null}>
-          <BlackHole
-            onReady={() => setIsBlackHoleReady(true)}
-            onError={() => setIsBlackHoleReady(true)}
-          />
-        </Suspense>
-      </div>
+        >
+          <Suspense fallback={null}>
+            <BlackHole
+              onReady={() => setIsBlackHoleReady(true)}
+              onError={() => setIsBlackHoleReady(true)}
+            />
+          </Suspense>
+        </div>
+      )}
 
       {/* Loader with TwinOrbit while black hole initializes */}
       {!isBlackHoleReady && currentRoute === "landing" && (
