@@ -338,17 +338,17 @@ export default function ScientificReportsTab({
 
             {timelineData ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Unique Epochs</span>
                   <span className="text-sm font-bold text-white">{timelineData.unique_epochs}</span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Total Products</span>
                   <span className="text-sm font-bold text-white">{timelineData.total_products}</span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Temporal Baseline</span>
                   <span className="text-sm font-bold text-amber-300">
                     {timelineData.temporal_baseline_days != null
@@ -357,9 +357,9 @@ export default function ScientificReportsTab({
                   </span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Available Bands</span>
-                  <span className="text-sm font-bold text-emerald-400">
+                  <span className="text-sm font-bold text-emerald-400 truncate" title={timelineData.available_bands.join(", ")}>
                     {timelineData.available_bands.join(", ") || "None"}
                   </span>
                 </div>
@@ -387,28 +387,30 @@ export default function ScientificReportsTab({
 
             {selectedProduct && insp ? (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Observation</span>
-                  <span className="font-bold text-white">{selectedProduct.observation_id}</span>
+                  <span className="font-bold text-white truncate block w-full" title={selectedProduct.observation_id || undefined}>
+                    {selectedProduct.observation_id}
+                  </span>
                   <span className="text-[10px] text-neutral-400">Band: {selectedProduct.band}</span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">WCS Solution</span>
-                  <span className="font-bold text-emerald-400">
+                  <span className="font-bold text-emerald-400 truncate block w-full" title={`${insp.wcs?.projection || "TAN-SIP"} (${insp.wcs?.pixel_scale_arcsec?.toFixed(2) ?? "6.2"} arcsec/px)`}>
                     {insp.wcs?.projection || "TAN-SIP"} ({insp.wcs?.pixel_scale_arcsec?.toFixed(2) ?? "6.2"} arcsec/px)
                   </span>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 truncate block w-full">
                     Target inside: {insp.wcs?.target_inside_image ? "VERIFIED" : "OUTSIDE"}
                   </span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Flux Statistics</span>
-                  <span className="font-bold text-white">
+                  <span className="font-bold text-white truncate block w-full">
                     Mean: {insp.stats?.mean?.toFixed(4) ?? "N/A"} {cutoutData?.cutout.unit || "MJy/sr"}
                   </span>
-                  <span className="text-[10px] text-neutral-400">
+                  <span className="text-[10px] text-neutral-400 truncate block w-full">
                     Std: {insp.stats?.std?.toFixed(4) ?? "N/A"} · Valid: {((insp.stats?.valid_fraction ?? 1) * 100).toFixed(1)}%
                   </span>
                 </div>
@@ -437,24 +439,28 @@ export default function ScientificReportsTab({
             {comparisonResult ? (
               <div className="flex flex-col gap-2 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Epoch A (Ref)</span>
-                    <span className="font-bold text-white">{epochA?.observation_id || "OBS_A"}</span>
+                    <span className="font-bold text-white truncate block w-full" title={epochA?.observation_id || "OBS_A"}>
+                      {epochA?.observation_id || "OBS_A"}
+                    </span>
                     <span className="text-[10px] text-neutral-400">Date: {epochA?.observation_time?.split("T")[0]}</span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Epoch B (Target)</span>
-                    <span className="font-bold text-white">{epochB?.observation_id || "OBS_B"}</span>
+                    <span className="font-bold text-white truncate block w-full" title={epochB?.observation_id || "OBS_B"}>
+                      {epochB?.observation_id || "OBS_B"}
+                    </span>
                     <span className="text-[10px] text-neutral-400">Date: {epochB?.observation_time?.split("T")[0]}</span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Differencing Verdict</span>
-                    <span className={`font-bold ${comparisonResult.scientifically_valid ? "text-emerald-400" : "text-amber-400"}`}>
+                    <span className={`font-bold truncate block w-full ${comparisonResult.scientifically_valid ? "text-emerald-400" : "text-amber-400"}`}>
                       {comparisonResult.scientifically_valid ? "ACK VERIFIED" : "COMPLETED WITH CAVEATS"}
                     </span>
-                    <span className="text-[10px] text-neutral-400">Model: {comparisonResult.metadata?.difference_model}</span>
+                    <span className="text-[10px] text-neutral-400 truncate block w-full">Model: {comparisonResult.metadata?.difference_model}</span>
                   </div>
                 </div>
 
@@ -499,12 +505,12 @@ export default function ScientificReportsTab({
             {lightCurveData && activeSource ? (
               <div className="flex flex-col gap-2 text-xs">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Associated Sources</span>
                     <span className="font-bold text-white">{lightCurveData.sources?.length ?? 0}</span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Reduced Chi-Square</span>
                     <span className={`font-bold ${
                       (metrics?.reduced_chi2 ?? 0) > 3.0
@@ -517,7 +523,7 @@ export default function ScientificReportsTab({
                     </span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Fractional Var (Fvar)</span>
                     <span className="font-bold text-cyan-300">
                       {metrics?.fractional_variability != null
@@ -526,7 +532,7 @@ export default function ScientificReportsTab({
                     </span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Weighted Mean Flux</span>
                     <span className="font-bold text-white">
                       {metrics?.weighted_mean_flux_jy != null
@@ -594,28 +600,28 @@ export default function ScientificReportsTab({
 
             {spectrumData?.spectrum ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Valid Channels</span>
                   <span className="font-bold text-emerald-400">
                     {spectrumData.spectrum.valid_channel_count} / {spectrumData.spectrum.channel_count} Valid
                   </span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Wavelength Span</span>
-                  <span className="font-bold text-white">
+                  <span className="font-bold text-white truncate" title={`${spectrumData.spectrum.wavelength_min_um?.toFixed(3) ?? "0.750"} - ${spectrumData.spectrum.wavelength_max_um?.toFixed(3) ?? "5.000"} µm`}>
                     {spectrumData.spectrum.wavelength_min_um?.toFixed(3) ?? "0.750"} - {spectrumData.spectrum.wavelength_max_um?.toFixed(3) ?? "5.000"} µm
                   </span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Spatial Order</span>
                   <span className="font-bold text-white">
                     HEALPix Order {spectrumData.provenance.order ?? 5}
                   </span>
                 </div>
 
-                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                   <span className="text-[10px] text-neutral-500 uppercase">Calibration Unit</span>
                   <span className="font-bold text-cyan-300">
                     MJy/sr (Surface Brightness)
@@ -646,7 +652,7 @@ export default function ScientificReportsTab({
             {sourceGaiaAssociation ? (
               <div className="flex flex-col gap-2 text-xs">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Match Status</span>
                     <span className={`font-bold ${
                       sourceGaiaAssociation.status === "MATCHED"
@@ -659,25 +665,25 @@ export default function ScientificReportsTab({
                     </span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Best Gaia DR3 ID</span>
-                    <span className="font-bold text-white truncate" title={sourceGaiaAssociation.best?.gaia_source_id ? String(sourceGaiaAssociation.best.gaia_source_id) : "None"}>
+                    <span className="font-bold text-white truncate block w-full" title={sourceGaiaAssociation.best?.gaia_source_id ? String(sourceGaiaAssociation.best.gaia_source_id) : "None"}>
                       {sourceGaiaAssociation.best?.gaia_source_id ? String(sourceGaiaAssociation.best.gaia_source_id) : "-"}
                     </span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Angular Separation</span>
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-white truncate block w-full">
                       {sourceGaiaAssociation.best?.separation_arcsec != null
                         ? `${sourceGaiaAssociation.best.separation_arcsec.toFixed(3)}″`
                         : "-"}
                     </span>
                   </div>
 
-                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5">
+                  <div className="p-2.5 border border-neutral-800 bg-black flex flex-col gap-0.5 min-w-0 overflow-hidden">
                     <span className="text-[10px] text-neutral-500 uppercase">Rayleigh p-value</span>
-                    <span className="font-bold text-cyan-300">
+                    <span className="font-bold text-cyan-300 truncate block w-full">
                       {sourceGaiaAssociation.significance?.match_p_value != null
                         ? sourceGaiaAssociation.significance.match_p_value.toExponential(3)
                         : "-"}

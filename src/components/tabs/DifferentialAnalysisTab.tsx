@@ -133,7 +133,7 @@ export default function DifferentialAnalysisTab({
         <div className="p-3 flex flex-col gap-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
             {/* Epoch A Card */}
-            <div className="p-2.5 bg-black border border-neutral-800 flex flex-col gap-2">
+            <div className="p-2.5 bg-black border border-neutral-800 flex flex-col gap-2 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between border-b border-neutral-900 pb-1">
                 <span className="text-amber-400 font-bold uppercase text-[11px]">
                   Epoch A (Reference Image: I_a)
@@ -142,8 +142,10 @@ export default function DifferentialAnalysisTab({
               </div>
 
               {epochA ? (
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-bold text-white">{epochA.observation_id}</span>
+                <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
+                  <span className="font-bold text-white truncate block w-full" title={epochA.observation_id || undefined}>
+                    {epochA.observation_id}
+                  </span>
                   <div className="text-[10px] text-neutral-400 flex items-center gap-3">
                     <span>Band: <strong className="text-sky-400">{epochA.band?.replace("SPHEREx-", "")}</strong></span>
                     <span>Date: {epochA.observation_time?.slice(0, 10)}</span>
@@ -174,7 +176,7 @@ export default function DifferentialAnalysisTab({
             </div>
 
             {/* Epoch B Card */}
-            <div className="p-2.5 bg-black border border-neutral-800 flex flex-col gap-2">
+            <div className="p-2.5 bg-black border border-neutral-800 flex flex-col gap-2 min-w-0 overflow-hidden">
               <div className="flex items-center justify-between border-b border-neutral-900 pb-1">
                 <span className="text-cyan-400 font-bold uppercase text-[11px]">
                   Epoch B (Target Search: I_b)
@@ -183,8 +185,10 @@ export default function DifferentialAnalysisTab({
               </div>
 
               {epochB ? (
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-bold text-white">{epochB.observation_id}</span>
+                <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
+                  <span className="font-bold text-white truncate block w-full" title={epochB.observation_id || undefined}>
+                    {epochB.observation_id}
+                  </span>
                   <div className="text-[10px] text-neutral-400 flex items-center gap-3">
                     <span>Band: <strong className="text-sky-400">{epochB.band?.replace("SPHEREx-", "")}</strong></span>
                     <span>Date: {epochB.observation_time?.slice(0, 10)}</span>

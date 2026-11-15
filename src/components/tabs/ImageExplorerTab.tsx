@@ -51,8 +51,8 @@ export default function ImageExplorerTab({
         <div className="flex items-center gap-3">
           <span className="text-[10px] text-neutral-400 uppercase">Active Observation:</span>
           {selectedProduct ? (
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-white bg-black px-2 py-0.5 border border-neutral-700">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="font-bold text-white bg-black px-2 py-0.5 border border-neutral-700 truncate max-w-[260px] sm:max-w-md block" title={selectedProduct.observation_id || undefined}>
                 {selectedProduct.observation_id}
               </span>
               <span className="text-sky-400 font-bold">
