@@ -700,13 +700,12 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             )}
 
             <div
-              className={`px-3 py-1 font-bold text-xs uppercase border ${
-                healthStatus === "online"
+              className={`px-3 py-1 font-bold text-xs uppercase border ${healthStatus === "online"
                   ? "bg-emerald-600/90 text-white border-emerald-500"
                   : healthStatus === "connecting"
                     ? "bg-amber-600/90 text-white border-amber-500"
                     : "bg-red-600/90 text-white border-red-500"
-              }`}
+                }`}
             >
               {healthStatus === "online" ? "SYSTEM ONLINE" : healthStatus === "connecting" ? "CONNECTING" : "OFFLINE"}
             </div>
@@ -738,11 +737,10 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
           <div className="flex items-center gap-1 overflow-x-auto py-1.5">
             <button
               onClick={() => setActiveNavTab("discovery")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
-                activeNavTab === "discovery"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${activeNavTab === "discovery"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               Discovery
             </button>
@@ -755,55 +753,50 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
                   void handleInspectFITS(selectedProduct);
                 }
               }}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
-                activeNavTab === "explorer"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${activeNavTab === "explorer"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               Image Explorer
             </button>
 
             <button
               onClick={() => setActiveNavTab("differential")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
-                activeNavTab === "differential"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${activeNavTab === "differential"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               Differential Analysis
             </button>
 
             <button
               onClick={() => setActiveNavTab("timedomain")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
-                activeNavTab === "timedomain"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${activeNavTab === "timedomain"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               Time-Domain Analysis
             </button>
 
             <button
               onClick={() => setActiveNavTab("reports")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
-                activeNavTab === "reports"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${activeNavTab === "reports"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               Scientific Reports
             </button>
 
             <button
               onClick={() => setActiveNavTab("jobs")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap flex items-center gap-1.5 ${
-                activeNavTab === "jobs"
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap flex items-center gap-1.5 ${activeNavTab === "jobs"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
-              }`}
+                }`}
             >
               <span>Job Monitor</span>
               {runningCount > 0 && (

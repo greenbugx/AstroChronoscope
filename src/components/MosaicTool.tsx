@@ -5,6 +5,7 @@ import {
   getFileUrl,
   type TimelineProduct,
 } from "@/lib/api";
+import { operationMonitor } from "@/lib/operationMonitor";
 import { TwinOrbit } from "@/components/loading-ui/twin-orbit";
 
 interface MosaicToolProps {
@@ -125,11 +126,21 @@ export default function MosaicTool({
       }
 
       // Query timeline to locate observations in each band
-      const timeline = await getTargetTimeline({
-        ra: raNum,
-        dec: decNum,
-        radius: sizeNum,
-      });
+      const timeline = await operationMonitor.executeOperation(
+        {
+          name: "Mosaic Multi-Band Timeline Query",
+          category: "discovery",
+          workspace: "discovery",
+          context: { ra: raNum, dec: decNum, radius: sizeNum },
+          dedupKey: `mosaic-timeline:${raNum.toFixed(4)}:${decNum.toFixed(4)}:${sizeNum}`,
+        },
+        () =>
+          getTargetTimeline({
+            ra: raNum,
+            dec: decNum,
+            radius: sizeNum,
+          })
+      );
 
       // Find representative products for each band
       const bandMap: Record<string, TimelineProduct> = {};
@@ -144,13 +155,30 @@ export default function MosaicTool({
       // Generate cutouts for each available band
       const results: Record<string, { product: TimelineProduct; previewUrl: string; fitsUrl: string }> = {};
       for (const [band, prod] of Object.entries(bandMap)) {
-        if (!prod.observation_id) continue;
+        const obsId = prod.observation_id;
+        if (!obsId) continue;
         try {
-          const res = await createCutout(prod.observation_id, {
-            ra: raNum,
-            dec: decNum,
-            size: sizeNum,
-          });
+          const res = await operationMonitor.executeOperation(
+            {
+              name: `Mosaic Cutout (${band})`,
+              category: "explorer",
+              workspace: "explorer",
+              context: {
+                observationId: obsId,
+                ra: raNum,
+                dec: decNum,
+                radius: sizeNum,
+                label: `Band: ${band}`,
+              },
+              dedupKey: `mosaic-cutout:${obsId}:${sizeNum}`,
+            },
+            () =>
+              createCutout(obsId, {
+                ra: raNum,
+                dec: decNum,
+                size: sizeNum,
+              })
+          );
           results[band] = {
             product: prod,
             previewUrl: res.cutout?.preview_url ? getFileUrl(res.cutout.preview_url) : "",

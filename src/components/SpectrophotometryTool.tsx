@@ -5,6 +5,7 @@ import {
   type SourceLightCurve,
   type LightCurvePoint,
 } from "@/lib/api";
+import { operationMonitor } from "@/lib/operationMonitor";
 import { TwinOrbit } from "@/components/loading-ui/twin-orbit";
 
 interface SpectrophotometryToolProps {
@@ -80,17 +81,32 @@ export default function SpectrophotometryTool({
         onCoordinatesChange(ra, dec);
       }
 
-      const res = await getTargetLightCurve({
-        ra: raNum,
-        dec: decNum,
-        radius_deg: radiusNum,
-        cutout_size_deg: cutoutNum,
-        max_observations: maxObsNum,
-        bands: selectedBand === "ALL" ? undefined : [selectedBand],
-        detection: {
-          threshold_sigma: sigmaNum,
+      const res = await operationMonitor.executeOperation(
+        {
+          name: "Spectrophotometry Light Curve",
+          category: "timedomain",
+          workspace: "timedomain",
+          context: {
+            ra: raNum,
+            dec: decNum,
+            radius: radiusNum,
+            label: `Band: ${selectedBand}, Max: ${maxObsNum}`,
+          },
+          dedupKey: `spectro-lc:${raNum.toFixed(4)}:${decNum.toFixed(4)}:${selectedBand}:${maxObsNum}`,
         },
-      });
+        () =>
+          getTargetLightCurve({
+            ra: raNum,
+            dec: decNum,
+            radius_deg: radiusNum,
+            cutout_size_deg: cutoutNum,
+            max_observations: maxObsNum,
+            bands: selectedBand === "ALL" ? undefined : [selectedBand],
+            detection: {
+              threshold_sigma: sigmaNum,
+            },
+          })
+      );
 
       setData(res);
       if (res.sources && res.sources.length > 0) {
