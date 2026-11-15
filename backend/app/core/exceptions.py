@@ -160,3 +160,43 @@ class PhotometryError(PlanetXError):
 class InsufficientDataError(PlanetXError):
     code = "INSUFFICIENT_DATA"
     status_code = 422
+
+
+class SpectralProductNotFoundError(PlanetXError):
+    code = "SPECTRAL_PRODUCT_NOT_FOUND"
+    status_code = 404
+
+
+class SpectralProductUnsupportedError(PlanetXError):
+    code = "SPECTRAL_PRODUCT_UNSUPPORTED"
+    status_code = 422
+
+
+class SpectralProductTooLargeError(PlanetXError):
+    code = "SPECTRAL_PRODUCT_TOO_LARGE"
+    status_code = 422
+
+
+class SpectralProductUnavailableError(PlanetXError):
+    code = "SPECTRAL_PRODUCT_UNAVAILABLE"
+    status_code = 503
+
+
+class SpectralTargetOutsideProductError(PlanetXError):
+    code = "SPECTRAL_TARGET_OUTSIDE_PRODUCT"
+    status_code = 422
+
+
+class SpectralExtractionError(PlanetXError):
+    code = "SPECTRAL_EXTRACTION_FAILED"
+    status_code = 422
+
+
+class SpectrumNotFoundError(PlanetXError):
+    code = "SPECTRUM_NOT_FOUND"
+    status_code = 404
+
+
+class SpectrumStorageError(PlanetXError):
+    code = "SPECTRUM_STORAGE_ERROR"
+    status_code = 500

@@ -54,6 +54,7 @@ class CacheStore:
         self.photometry = TTLCache(ttl_seconds, max_entries)
         self.lightcurves = TTLCache(ttl_seconds, max_entries)
         self.variability = TTLCache(ttl_seconds, max_entries)
+        self.spectra = TTLCache(ttl_seconds, max_entries)
 
     def clear(self) -> None:
         self.search.clear()
@@ -64,3 +65,4 @@ class CacheStore:
         self.photometry.clear()
         self.lightcurves.clear()
         self.variability.clear()
+        self.spectra.clear()

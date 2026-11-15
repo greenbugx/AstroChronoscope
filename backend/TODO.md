@@ -211,6 +211,29 @@ Single source of truth for backend progress. Updated at the end of each phase.
 - [x] Live Phase 3 validation (2026-11-15): D3 band, two bounded epochs -> detections, photometry, association, per-band metrics and persisted source round-trip; `RUN_LIVE=1 pytest -q tests/test_live_phase3.py` -> `1 passed in 40 s`.
 - [ ] PSF/forced photometry, transient-candidate ranking and classification remain future phases.
 
+## O. Phase 4 - Spectral Data Processing
+
+- [x] Investigate genuine IRSA spectral products (`backend/docs/SPECTRAL_PRODUCTS.md`): only the DR1 All-Sky Cube is a full-spectrum product; spectral images expose one `WCS-WAVE` channel.
+- [x] Add Phase 4 contracts (`app/schemas/spectra.py`), settings, `storage/spectra/`, cache namespace and algorithm version (`phase4-spectrum-extraction-v1`).
+- [x] Implement DR1 cube resolution (`app/services/spectral_resolver.py`): SIA2 cube rows, nearest tile, hash-addressed FITS cache, 400 MB spectral download cap.
+- [x] Implement product-specific FITS inspection (`app/services/spectral_inspection.py`): cube/spectral-image detection, HDUs, `SPECTRAL_CHANNELS`, `BLANKCH`, `NHITS`, `FLAGS`, `WCS-WAVE`, target pixel and coverage.
+- [x] Fix real QR3 cutout `WCS-WAVE` evaluation by applying `CRPIX1A`/`CRPIX2A` detector offsets; target resolves to 2.007347 um instead of 2.425 um.
+- [x] Implement cube extraction (`app/services/spectrum_extraction.py`): bilinear/nearest point sampling, per-channel table, blank/invalid/non-finite handling, `MJy/sr`, no fabricated variance, deterministic 32-hex ids and provenance.
+- [x] Implement atomic spectrum persistence and source listing (`app/services/spectrum_catalog.py`).
+- [x] Implement spectral comparison (`app/services/spectral_comparison.py`): wavelength matching, `comparison_basis`, grid compatibility, per-channel difference/ratio, explicit static-mosaic/no-uncertainty limitations.
+- [x] Add API routes (`POST /api/v1/spectra/extract`, `GET /api/v1/spectra/{id}`, `GET /api/v1/sources/{id}/spectra`, `POST /api/v1/spectra/compare`), dependency wiring, concurrency bound and OpenAPI docs.
+- [x] Add deterministic tests: contracts, cube/spectral-image inspection, extraction, persistence, resolver, comparison, API success/error paths and source listing.
+- [x] Validate a genuine DR1 cube end to end: 320,909,760 bytes, 102x512x512, target pixel (282.099,229.071), 100 valid channels, blanks 50/51, 0.753-4.988 um, no `VARIANCE`.
+- [x] Update README, frontend integration guide, TODO and spectral product report.
+- [ ] Multi-epoch spectra are not supported by DR1 (static mosaic); spectral slope/SED fitting and other spectral products remain future work.
+
+## Validation log (2026-11-15, Phase 4 spectral pipeline)
+
+- Deterministic suite: **315 passed, 7 skipped** (the 7 skips are the opt-in live IRSA tests); `compileall` and `pyflakes` clean.
+- Real DR1 validation: downloaded `Npix9621_cube.fits` (320,909,760 bytes) through the backend's spectral-size-capped downloader; inspection found `[102,512,512]`, 102 channels, blank channels 50/51, target pixel (282.099,229.071), 13.983 arcsec/px, `MJy/sr`, no `VARIANCE`; extraction returned 100 valid channels over 0.753-4.988 um with `uncertainty_status=NOT_VERIFIED`.
+- Real QR3 spectral-image check: target `(28.310,29.069)` maps through cutout offsets to detector `(902.310,960.069)` and `WCS-WAVE` gives 2.007347 um, bandwidth 0.049704 um (matches the earlier detector-coordinate result).
+- IRSA SIA returned intermittent `503` during live validation; the direct archive cube URL was reachable and the file was verified locally. This is an archive availability issue, not fabricated data.
+
 ## Validation log (2026-11-15, Phase 3 science pipeline)
 
 - `uv run pytest -q` -> **280 passed, 7 skipped** in 56.70 s, repeated -> **280 passed, 7 skipped** in 34.40 s. The 7 skips are the opt-in live IRSA tests.

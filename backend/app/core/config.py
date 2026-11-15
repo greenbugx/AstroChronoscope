@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -69,6 +70,13 @@ class Settings(BaseSettings):
     photometry_min_valid_fraction: float = 0.5
     max_concurrent_detections: int = 2
 
+    # Spectral extraction (Phase 4)
+    spectral_collection: str = "spherex_dr1_cube"
+    spectral_max_download_bytes: int = 400 * 1024 * 1024
+    spectral_spatial_method: Literal["bilinear", "nearest"] = "bilinear"
+    spectral_invalid_flag_bits: tuple[int, ...] = (1, 19)
+    max_concurrent_spectral: int = 2
+
     # Ops
     log_level: str = "INFO"
     cors_origins: tuple[str, ...] = (
@@ -77,6 +85,14 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     )
+
+    @field_validator("spectral_invalid_flag_bits")
+    @classmethod
+    def _valid_spectral_flag_bits(cls, bits: tuple[int, ...]) -> tuple[int, ...]:
+        normalized = tuple(dict.fromkeys(int(bit) for bit in bits))
+        if any(bit < 0 or bit > 31 for bit in normalized):
+            raise ValueError("SPECTRAL_INVALID_FLAG_BITS must contain bit indices in [0, 31]")
+        return normalized
 
     @field_validator("cors_origins")
     @classmethod
@@ -109,12 +125,17 @@ class Settings(BaseSettings):
     def lightcurves_dir(self) -> Path:
         return self.storage_dir / "lightcurves"
 
+    @property
+    def spectra_dir(self) -> Path:
+        return self.storage_dir / "spectra"
+
     def ensure_dirs(self) -> None:
         self.fits_dir.mkdir(parents=True, exist_ok=True)
         self.previews_dir.mkdir(parents=True, exist_ok=True)
         self.comparisons_dir.mkdir(parents=True, exist_ok=True)
         self.sources_dir.mkdir(parents=True, exist_ok=True)
         self.lightcurves_dir.mkdir(parents=True, exist_ok=True)
+        self.spectra_dir.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

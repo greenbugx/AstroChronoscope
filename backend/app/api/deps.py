@@ -15,6 +15,7 @@ from app.services.observation_service import ObservationService
 from app.services.photometry import PhotometryService
 from app.services.source_catalog import SourceCatalogService
 from app.services.source_detection import SourceDetectionService
+from app.services.spectral_service import SpectralService
 from app.services.timeline_service import TimelineService
 
 
@@ -81,3 +82,12 @@ def get_target_lightcurve_service(
     catalog: SourceCatalogService = Depends(get_source_catalog_service),
 ) -> TargetLightCurveService:
     return TargetLightCurveService(observations, detection, photometry, catalog)
+
+
+def get_spectral_service(
+    observations: ObservationService = Depends(get_observation_service),
+    catalog: SourceCatalogService = Depends(get_source_catalog_service),
+    cache: CacheStore = Depends(get_cache_store),
+    settings: Settings = Depends(get_settings_dep),
+) -> SpectralService:
+    return SpectralService(settings, cache, observations, catalog)

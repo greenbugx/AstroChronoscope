@@ -102,6 +102,35 @@ const curve = await fetch(`${API_BASE}/targets/lightcurve`, {
 // Metrics are evidence, not a classification.
 ```
 
+Phase 4 (DR1 cube spectra):
+
+```ts
+// Extract a spectrum at a target or at a persisted source id.
+const extracted = await fetch(`${API_BASE}/spectra/extract`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ ra: 156.09328159, dec: -41.64466331 }),
+}).then(r => r.json());
+
+// Full ordered channel table for plotting.
+const spectrum = extracted.spectrum;
+// flux_unit === "MJy/sr", flux_kind === "surface_brightness"; null flux means blank/invalid.
+// uncertainty_mjy_sr is always null and quality.uncertainty_status === "NOT_VERIFIED".
+
+// Retrieve later / list by source.
+const stored = await fetch(`${API_BASE}/spectra/${spectrum.spectrum_id}`).then(r => r.json());
+const sourceSpectra = await fetch(`${API_BASE}/sources/${sourceId}/spectra`).then(r => r.json());
+
+// Compare two stored spectra by wavelength, not array index.
+const spectralComparison = await fetch(`${API_BASE}/spectra/compare`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ spectrum_id_a: spectrum.spectrum_id, spectrum_id_b: otherId }),
+}).then(r => r.json());
+// Show comparison_basis, grid_compatible, quality and warnings. A different-product
+// comparison is NOT evidence of time variability: the cube is a static mosaic.
+```
+
 ---
 
 ## 2. Base URL, origin and file URLs
@@ -226,6 +255,10 @@ When an origin is not allowed, the preflight fails with HTTP 400 and no
 | `GET` | `/api/v1/sources/{source_id}` | persisted internal source and detections | immediate |
 | `GET` | `/api/v1/sources/{source_id}/lightcurve` | persisted per-band light curve | immediate |
 | `GET` | `/api/v1/sources/{source_id}/variability` | persisted per-band variability metrics | immediate |
+| `POST` | `/api/v1/spectra/extract` | DR1 cube spectrum extraction | ~5 s cached / several min for a new 306 MiB tile |
+| `GET` | `/api/v1/spectra/{spectrum_id}` | stored spectrum + provenance | immediate |
+| `GET` | `/api/v1/sources/{source_id}/spectra` | spectrum summaries for one source | immediate |
+| `POST` | `/api/v1/spectra/compare` | wavelength-matched comparison of stored spectra | immediate |
 | `GET` | `/api/v1/files/{filename}` | serve generated preview/FITS | immediate |
 
 Search and cutout are `POST` because they carry parameters in a JSON body. There is no
@@ -803,6 +836,116 @@ per-band `band_metrics[]` without duplicating point arrays. `GET
 source. Use these for a compact review table; fetch the light curve separately when
 plotting. Metrics remain evidence, not classification.
 
+### 5.17 `POST /spectra/extract`
+
+Body fields: `source_id` **or** (`ra`, `dec`) — mutually exclusive; optional
+`collection` and `config.spatial_method` (`bilinear` default or `nearest`). Unknown
+fields are rejected. `source_id` resolves the reference position from the persisted
+Phase 3 source.
+
+Response `200`:
+
+```json
+{
+  "success": true,
+  "spectrum": {
+    "spectrum_id": "29891c5bfbcd874dc23126ae179fbbf8",
+    "source_id": null,
+    "product_type": "spherex_dr1_all_sky_cube",
+    "collection": "spherex_dr1_cube",
+    "product_id": "ivo://irsa.ipac/spherex_dr1_cube?hips5_cube-hips_20261026/9621",
+    "ra_deg": 156.09328159,
+    "dec_deg": -41.64466331,
+    "pixel_x": 282.099,
+    "pixel_y": 229.071,
+    "wavelength_unit": "um",
+    "flux_unit": "MJy/sr",
+    "flux_kind": "surface_brightness",
+    "channel_count": 102,
+    "valid_channel_count": 100,
+    "blank_channels": [50, 51],
+    "channels": [
+      {
+        "index": 0,
+        "wavelength_um": 0.753,
+        "flux_mjy_sr": 0.0933,
+        "uncertainty_mjy_sr": null,
+        "nhits": 13,
+        "flags": 2097152,
+        "flags_applied": [],
+        "quality": "PASS"
+      }
+    ],
+    "quality": {
+      "overall_status": "WARNING",
+      "uncertainty_status": "NOT_VERIFIED",
+      "warnings": ["cube_is_static_mosaic", "no_variance_extension", "blank_channels_present"]
+    },
+    "limitations": ["cube_is_static_mosaic", "surface_brightness_not_integrated_flux"]
+  },
+  "provenance": {
+    "created_at": "2026-11-15T00:00:00+00:00",
+    "algorithm_version": "phase4-spectrum-extraction-v1",
+    "access_url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/...Npix9621_cube.fits",
+    "fits_sha256": "...",
+    "npix": 9621,
+    "order": 5
+  }
+}
+```
+
+The first request for a tile downloads roughly 306 MiB and is synchronous; give it a
+long client timeout and show a loading state. Subsequent requests use the disk cache.
+Flux is surface brightness, not total source flux. Blank/invalid channels have null
+flux and a non-`PASS` quality; never render them as measured zero.
+
+### 5.18 `GET /spectra/{spectrum_id}`
+
+Returns the same `spectrum` + `provenance` shape. Unknown/malformed ids return
+`404 SPECTRUM_NOT_FOUND`; corrupt stored JSON returns `500 SPECTRUM_STORAGE_ERROR`.
+
+### 5.19 `GET /sources/{source_id}/spectra`
+
+```json
+{
+  "success": true,
+  "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "spectra": [
+    {
+      "spectrum_id": "29891c5bfbcd874dc23126ae179fbbf8",
+      "source_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collection": "spherex_dr1_cube",
+      "product_id": "ivo://irsa.ipac/spherex_dr1_cube?...",
+      "ra_deg": 156.09328159,
+      "dec_deg": -41.64466331,
+      "valid_channel_count": 100,
+      "channel_count": 102,
+      "wavelength_min_um": 0.753,
+      "wavelength_max_um": 4.988,
+      "quality": "WARNING",
+      "created_at": "2026-11-15T00:00:00+00:00"
+    }
+  ]
+}
+```
+
+Listings omit channel arrays; fetch the full spectrum by id. Unknown source ids return
+`404 SOURCE_NOT_FOUND`.
+
+### 5.20 `POST /spectra/compare`
+
+Body: `spectrum_id_a`, `spectrum_id_b`, optional `config.min_overlap_channels`
+(default 5) and `config.wavelength_tolerance_um` (default `1e-4`).
+
+Response `comparison` includes `comparison_basis`, `grid_compatible`,
+`overlap_channel_count`, `channels[]` with `difference_mjy_sr` and `ratio`, plus
+`quality` and `warnings`. Possible bases: `same_spectrum`,
+`same_product_static_mosaic`, `different_products_static_mosaic`.
+
+A different-product comparison is **not** a spectral time series: the DR1 cube is a
+static mosaic and has no epoch or variance. `uncertainty_status` is always
+`NOT_VERIFIED`; low overlap returns `FAIL`, sufficient overlap returns `WARNING`.
+
 ---
 
 ## 6. Observation identifiers
@@ -858,6 +1001,12 @@ To inspect one associated source, use `GET /sources/{source_id}` and
 ids remain valid after a backend restart, and ids below `min_epochs` are still
 retrievable for review.
 
+For Phase 4, call `POST /spectra/extract` with the target coordinates or a persisted
+`source_id`. Plot `spectrum.channels[]` against `wavelength_um`, skipping null flux, and
+show `quality`, `blank_channels`, `flags_applied` and `limitations`. Use
+`GET /sources/{source_id}/spectra` for the source tab. Comparisons are static-mosaic
+comparisons, not light curves: show `comparison_basis` and warnings prominently.
+
 ---
 
 ## 8. Errors
@@ -884,16 +1033,21 @@ to end users; map them to friendly text and offer retry where sensible.
 | 404 | `OBSERVATION_NOT_FOUND` | id is stale/unknown → re-run search |
 | 404 | `COMPARISON_NOT_FOUND` | comparison id unknown/malformed/evicted → re-run the comparison |
 | 404 | `FILE_NOT_FOUND` | cached file missing/removed → re-request cutout |
+| 404 | `SPECTRAL_PRODUCT_NOT_FOUND` | no DR1 cube covers that position → try another target |
+| 404 | `SPECTRUM_NOT_FOUND` | spectrum id unknown/malformed → re-extract |
 | 422 | `INVALID_REQUEST` | request schema bug (unknown field, wrong type) |
+| 422 | `SPECTRAL_PRODUCT_UNSUPPORTED`, `SPECTRAL_TARGET_OUTSIDE_PRODUCT`, `SPECTRAL_EXTRACTION_FAILED` | spectral product cannot produce a spectrum at this position |
 | 422 | `MISSING_ACCESS_URL`, `UNTRUSTED_ACCESS_URL`, `UNSUPPORTED_PRODUCT`, `MISSING_IMAGE_EXTENSION` | this product cannot be displayed |
 | 422 | `IMAGE_PROCESSING_LIMIT` | pair exceeds `MAX_COMPARISON_PIXELS` → use a smaller `size` |
 | 422 | `REPROJECTION_FAILED` | WCS transform/interpolation failed → try another pair |
 | 502 | `IRSA_HTTP_ERROR`, `IRSA_INVALID_RESPONSE`, `IRSA_QUERY_ERROR`, `INVALID_FITS_FILE` | upstream/data error → retry |
 | 503 | `IRSA_UNAVAILABLE`, `IRSA_CUTOUT_UNAVAILABLE` | upstream busy → retry later |
-| 503 | `PROCESSING_BUSY` | too many comparisons in flight → retry shortly |
+| 503 | `SPECTRAL_PRODUCT_UNAVAILABLE` | cube archive temporarily unavailable → retry later |
+| 503 | `PROCESSING_BUSY` | too many comparisons/extractions in flight → retry shortly |
 | 504 | `IRSA_TIMEOUT` | upstream slow → retry |
 | 404 | `SOURCE_NOT_FOUND` | source id unknown/malformed �+' re-run the target pipeline or use an id from the current response |
 | 500 | `SOURCE_STORAGE_ERROR` | persisted source record is corrupt/unreadable �+' report; do not fabricate source data |
+| 500 | `SPECTRUM_STORAGE_ERROR` | persisted spectrum JSON is corrupt/unreadable �+' report; re-extract if possible |
 | 500 | `PREVIEW_GENERATION_FAILED`, `INTERNAL_ERROR` | retry / report |
 
 Framework-level errors (`HTTP_ERROR`): unknown route (`404`) and wrong method (`405`)
@@ -1087,7 +1241,8 @@ curl -s http://localhost:8000/api/v1/images/comparisons/<comparison_id> | jq '{s
 Do not build UI on top of features that do not exist in this backend:
 
 - PSF photometry, forced photometry or deblending beyond the simple local-maximum split
-- spectral extraction or spectral cubes
+- multi-epoch spectra, SED fitting, spectral slope fitting or physical feature claims
+- spectral-image extraction (only the DR1 all-sky cube is a supported spectrum)
 - image-based re-registration / deconvolution (alignment is validated, not corrected)
 - candidate classification, transient confirmation or significance maps
 - background jobs, progress streams or cancellation for long analyses
@@ -1098,8 +1253,11 @@ metadata, WCS validation, previews, FITS inspection (`POST /images/inspect`), va
 pairwise difference imaging (`POST /images/compare`), stored comparison records
 (`GET /images/comparisons/{id}`), source detection (`POST /sources/detect`), aperture
 photometry (`POST /sources/photometry`), target light curves with variability metrics
-(`POST /targets/lightcurve`, `POST /targets/variability`), and persisted source detail /
-light-curve / variability views (`GET /sources/{id}`, `/lightcurve`, `/variability`).
+(`POST /targets/lightcurve`, `POST /targets/variability`), persisted source detail /
+light-curve / variability views (`GET /sources/{id}`, `/lightcurve`, `/variability`),
+and DR1 cube spectra with extraction, retrieval, source listing and comparison
+(`POST /spectra/extract`, `GET /spectra/{id}`, `GET /sources/{id}/spectra`,
+`POST /spectra/compare`).
 
 For comparison UIs: render `quality.checks` rather than only the image, and never treat
 HTTP `200` as "the science passed" — check `status` / `scientifically_valid`.
@@ -1127,6 +1285,13 @@ classification.
 | `404 COMPARISON_NOT_FOUND` | comparison id typo / record not on this host | re-run the comparison; ids are per-backend-instance |
 | `404 SOURCE_NOT_FOUND` | source id typo / not produced by this backend | use an id from a current target response; ids are 32 lowercase hex characters |
 | `500 SOURCE_STORAGE_ERROR` | persisted source JSON is corrupt or unreadable | report the id; do not display guessed source data |
+| `404 SPECTRAL_PRODUCT_NOT_FOUND` | no DR1 cube covers the target | try another position or collection |
+| `404 SPECTRUM_NOT_FOUND` | spectrum id typo / not stored on this backend | extract again and use the returned `spectrum_id` |
+| `422 SPECTRAL_TARGET_OUTSIDE_PRODUCT` | target lies outside the retrieved cube tile WCS | use a position inside the tile |
+| `503 SPECTRAL_PRODUCT_UNAVAILABLE` | cube archive busy/unreachable | retry later |
+| `503 PROCESSING_BUSY` | `MAX_CONCURRENT_SPECTRAL` saturated | retry after a few seconds |
+| Spectrum has `uncertainty_mjy_sr: null` | the DR1 cube has no `VARIANCE` extension | expected; show "uncertainty not available", not zero error |
+| Spectral comparison `overall_status: "FAIL"` | fewer than `min_overlap_channels` matched wavelengths | show the warning; do not invent a comparison |
 | `422 IMAGE_PROCESSING_LIMIT` | pair exceeds `MAX_COMPARISON_PIXELS` | reduce `size` (0.2° is the default; 0.1° is a quarter of the pixels) |
 | `422 REPROJECTION_FAILED` | one product's WCS could not be transformed onto the other grid | try a different pair; report the ids |
 | `503 PROCESSING_BUSY` | `MAX_CONCURRENT_COMPARISONS` saturated | retry after a few seconds |

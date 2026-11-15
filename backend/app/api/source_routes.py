@@ -8,8 +8,10 @@ from app.api.deps import (
     get_photometry_service,
     get_source_catalog_service,
     get_source_detection_service,
+    get_spectral_service,
 )
 from app.schemas.common import ErrorResponse
+from app.schemas.spectra import SourceSpectraResponse
 from app.schemas.lightcurve import (
     SourceDetailResponse,
     SourceLightCurveResponse,
@@ -20,6 +22,7 @@ from app.schemas.sources import DetectionRequest, DetectionResponse
 from app.services.photometry import PhotometryService
 from app.services.source_catalog import SourceCatalogService
 from app.services.source_detection import SourceDetectionService
+from app.services.spectral_service import SpectralService
 
 router = APIRouter(prefix="/sources", tags=["sources"])
 
@@ -83,6 +86,19 @@ def get_source_lightcurve(
     service: SourceCatalogService = Depends(get_source_catalog_service),
 ) -> SourceLightCurveResponse:
     return service.lightcurve(source_id)
+
+
+@router.get(
+    "/{source_id}/spectra",
+    response_model=SourceSpectraResponse,
+    responses=_ERRORS,
+    summary="Retrieve stored DR1 cube spectra associated with one source",
+)
+def get_source_spectra(
+    source_id: str,
+    service: SpectralService = Depends(get_spectral_service),
+) -> SourceSpectraResponse:
+    return service.source_spectra(source_id)
 
 
 @router.get(

@@ -136,6 +136,7 @@ def download_fits(
     *,
     session: requests.Session | None = None,
     settings: Settings | None = None,
+    max_bytes: int | None = None,
 ) -> Path:
     """Stream ``url`` to ``destination`` atomically, validating it is real FITS.
 
@@ -144,6 +145,7 @@ def download_fits(
     """
     settings = settings or get_settings()
     validate_fits_url(url, settings)
+    limit = settings.max_download_bytes if max_bytes is None else max(1, int(max_bytes))
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp_path = destination.with_suffix(destination.suffix + ".part")
     attempts = max(1, settings.download_retries + 1)
@@ -151,7 +153,7 @@ def download_fits(
 
     for attempt in range(1, attempts + 1):
         try:
-            _stream_to_file(url, temp_path, session or requests, settings)
+            _stream_to_file(url, temp_path, session or requests, settings, limit)
             verify_fits(temp_path)
             os.replace(temp_path, destination)
             log.info("fits_downloaded", extra={"url": url, "path": str(destination), "bytes": destination.stat().st_size})
@@ -175,7 +177,7 @@ def download_fits(
     raise last_error
 
 
-def _stream_to_file(url: str, temp_path: Path, http: Any, settings: Settings) -> None:
+def _stream_to_file(url: str, temp_path: Path, http: Any, settings: Settings, max_bytes: int) -> None:
     try:
         response = http.get(
             url,
@@ -209,10 +211,10 @@ def _stream_to_file(url: str, temp_path: Path, http: Any, settings: Settings) ->
             )
 
         declared = response.headers.get("Content-Length")
-        if declared and declared.isdigit() and int(declared) > settings.max_download_bytes:
+        if declared and declared.isdigit() and int(declared) > max_bytes:
             raise InvalidFitsFileError(
                 "FITS product exceeds the configured download limit",
-                details={"content_length": int(declared), "max_download_bytes": settings.max_download_bytes},
+                details={"content_length": int(declared), "max_download_bytes": max_bytes},
             )
 
         written = 0
@@ -221,10 +223,10 @@ def _stream_to_file(url: str, temp_path: Path, http: Any, settings: Settings) ->
                 if not chunk:
                     continue
                 written += len(chunk)
-                if written > settings.max_download_bytes:
+                if written > max_bytes:
                     raise InvalidFitsFileError(
                         "FITS product exceeded the configured download limit",
-                        details={"max_download_bytes": settings.max_download_bytes},
+                        details={"max_download_bytes": max_bytes},
                     )
                 handle.write(chunk)
 

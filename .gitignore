@@ -51,22 +51,26 @@ backend/storage/previews/*
 backend/storage/comparisons/*
 backend/storage/sources/*
 backend/storage/lightcurves/*
+backend/storage/spectra/*
 !backend/storage/fits/.gitkeep
 !backend/storage/previews/.gitkeep
 !backend/storage/comparisons/.gitkeep
 !backend/storage/sources/.gitkeep
 !backend/storage/lightcurves/.gitkeep
+!backend/storage/spectra/.gitkeep
 
 storage/fits/*
 storage/previews/*
 storage/comparisons/*
 storage/sources/*
 storage/lightcurves/*
+storage/spectra/*
 !storage/fits/.gitkeep
 !storage/previews/.gitkeep
 !storage/comparisons/.gitkeep
 !storage/sources/.gitkeep
 !storage/lightcurves/.gitkeep
+!storage/spectra/.gitkeep
 
 # OS metadata
 .DS_Store

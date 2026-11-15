@@ -9,6 +9,11 @@ import numpy as np
 import scipy
 
 
+#: Version of the Phase 4 cube-spectrum extraction pipeline. Bump whenever the
+#: wavelength mapping, flag policy or flux extraction numerics change.
+SPECTRAL_ALGORITHM_VERSION = "phase4-spectrum-extraction-v1"
+
+
 def backend_version() -> str:
     try:
         from app.main import VERSION
@@ -28,4 +33,4 @@ def software_versions() -> dict[str, str]:
     }
 
 
-__all__ = ["backend_version", "software_versions"]
+__all__ = ["SPECTRAL_ALGORITHM_VERSION", "backend_version", "software_versions"]

@@ -407,6 +407,106 @@ def make_sky_fits_bytes(
     return buffer.getvalue()
 
 
+def make_cube_fits_bytes(
+    *,
+    nx: int = 8,
+    ny: int = 8,
+    nchan: int = 5,
+    target_ra: float = TARGET_RA,
+    target_dec: float = TARGET_DEC,
+    target_x: float = 4.5,
+    target_y: float = 4.5,
+    blank_index: int = 2,
+    invalid_index: int = 3,
+) -> bytes:
+    """Build a small DR1-cube-like FITS with a channel table and masks."""
+    wcs = make_sky_wcs(
+        nx=nx,
+        ny=ny,
+        target_ra=target_ra,
+        target_dec=target_dec,
+        crpix=(target_x + 1.0, target_y + 1.0),
+        pixel_scale_arcsec=13.98,
+    )
+    header = wcs.to_header(relax=True)
+    header["BUNIT"] = "MJy/sr"
+    header["NPIX"] = 9621
+    header["ORDER"] = 5
+    header["BLANKCH"] = f"D1:{blank_index + 1:02d}"
+
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    data = np.empty((nchan, ny, nx), dtype=np.float32)
+    for channel in range(nchan):
+        data[channel] = (1.0 + xx + 10.0 * yy) * (channel + 1)
+    data[blank_index] = np.nan
+
+    nhits = np.full((nchan, ny, nx), 10, dtype=np.int32)
+    nhits[blank_index] = 0
+    flags = np.full((nchan, ny, nx), 1 << 21, dtype=np.int32)
+    flags[blank_index] = 0
+    flags[invalid_index] |= 1 << 1
+
+    wavelengths = np.linspace(0.75, 4.98, nchan)
+    bandwidths = np.full(nchan, 0.05)
+    columns = [
+        fits.Column(name="DETECTOR", format="I", array=np.ones(nchan, dtype=np.int16)),
+        fits.Column(name="SUBCHAN", format="I", array=np.arange(1, nchan + 1, dtype=np.int16)),
+        fits.Column(name="WAVELENGTH", format="E", unit="um", array=wavelengths),
+        fits.Column(name="WL_MIN", format="E", unit="um", array=wavelengths - bandwidths / 2),
+        fits.Column(name="WL_MAX", format="E", unit="um", array=wavelengths + bandwidths / 2),
+        fits.Column(name="BANDWIDTH", format="E", unit="um", array=bandwidths),
+        fits.Column(name="R", format="E", array=wavelengths / bandwidths),
+    ]
+    channels = fits.BinTableHDU.from_columns(columns, name="SPECTRAL_CHANNELS")
+
+    hdus = [
+        fits.PrimaryHDU(),
+        fits.ImageHDU(data=data, header=header, name="IMAGE"),
+        fits.ImageHDU(data=nhits, name="NHITS"),
+        fits.ImageHDU(data=flags, name="FLAGS"),
+        channels,
+    ]
+    buffer = io.BytesIO()
+    fits.HDUList(hdus).writeto(buffer)
+    return buffer.getvalue()
+
+
+def make_spectral_image_fits_bytes(
+    *,
+    nx: int = 10,
+    ny: int = 10,
+    target_ra: float = TARGET_RA,
+    target_dec: float = TARGET_DEC,
+    wavelength_start_um: float = 2.0,
+    slope_um_per_pixel: float = 0.01,
+    bandwidth_um: float = 0.05,
+) -> bytes:
+    """Build a single-channel spectral image with a WCS-WAVE lookup table."""
+    base = fits.open(io.BytesIO(make_sky_fits_bytes(nx=nx, ny=ny, target_ra=target_ra, target_dec=target_dec)))
+    x_nodes = np.arange(1, nx + 1, dtype=np.int32)
+    y_nodes = np.arange(1, ny + 1, dtype=np.int32)
+    values = np.empty((2, ny, nx), dtype=np.float64)
+    values[0] = wavelength_start_um + slope_um_per_pixel * (y_nodes[:, None] - 1)
+    values[1] = bandwidth_um
+    table = fits.BinTableHDU.from_columns(
+        [
+            fits.Column(name="X", format=f"{nx}J", array=[x_nodes]),
+            fits.Column(name="Y", format=f"{ny}J", array=[y_nodes]),
+            fits.Column(
+                name="VALUES",
+                format=f"{nx * ny * 2}E",
+                array=values.reshape(1, -1),
+            ),
+        ],
+        name="WCS-WAVE",
+    )
+    base.append(table)
+    buffer = io.BytesIO()
+    base.writeto(buffer)
+    base.close()
+    return buffer.getvalue()
+
+
 class RoutedSession:
     """Session stand-in that picks a payload from a URL substring match."""
 
