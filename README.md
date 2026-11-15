@@ -1,180 +1,110 @@
-# AstroChronoscope — Planet X
+# AstroChronoscope
 
-AstroChronoscope / Planet X is a time-domain astronomical exploration platform powered by
-NASA SPHEREx. It discovers real SPHEREx observations through IRSA, retrieves FITS products
-and spatial cutouts, validates their celestial WCS, and compares two epochs of the same
-target on a common sky grid with explicit scientific quality checks.
+AstroChronoscope is a time-domain astronomical investigation platform for SPHEREx observations retrieved through NASA/IPAC IRSA. It queries multi-epoch archive observations, retrieves FITS cutouts, validates astrometric WCS solutions, performs differential image subtraction, extracts light curves, analyzes spectra, and cross-matches with Gaia DR3.
 
-Everything shown comes from live IRSA data. There are no mock observations, no synthetic
-FITS files in the product path and no hardcoded observation metadata.
+## Features
 
-## Project structure
+- **Observation Discovery**: Query SPHEREx observations via IRSA SIA2 cone search with metadata mapping and multi-epoch timeline generation.
+- **FITS Processing**: Retrieve cutouts, extract celestial WCS solutions, and inspect HDU statistics, data flags, and PSF metrics.
+- **Differential Image Analysis**: Re-project multi-epoch images onto a common sky grid and compute difference images with variance propagation.
+- **Time-Domain Analysis**: Source detection, circular aperture photometry, and multi-epoch light curve generation.
+- **Spectrophotometry**: 1D spectral cube extraction and cross-epoch spectral comparison with correlation and residual analysis.
+- **Gaia DR3 Integration**: Cone search and astrometric cross-matching with proper motion propagation.
+- **Benchmark Target Presets**: One-click configuration for NASA benchmark targets: Barnard's Star, Epsilon Indi B, WISE 0855-0714, RW Aurigae, and R Draconis.
+- **Synchronous Operation Monitor**: Real-time lifecycle tracking of backend API requests with duration measurement and failure diagnostics.
+
+## Project Structure
 
 ```text
 AstroChronoscope/
-├── src/                       # React + TypeScript frontend (Vite, at repo root)
-├── public/
+├── src/                # React and TypeScript frontend
+├── backend/            # FastAPI service
+│   ├── app/            # API routes, services, schemas, and config
+│   ├── tests/          # Pytest test suite
+│   ├── storage/        # Local cache for FITS cutouts and generated previews
+│   └── docs/           # Backend integration documentation
+├── tests/              # Frontend unit tests
 ├── index.html
-├── package.json               # pnpm scripts: dev / build / lint / preview
-├── vite.config.ts
-├── tsconfig*.json
-├── notebooks/
-├── backend/                   # FastAPI service (Planet X phases 1-2)
-│   ├── app/                   # routes, schemas, services, core config
-│   ├── tests/                 # deterministic + opt-in live tests
-│   ├── docs/                  # frontend integration contract
-│   ├── storage/               # runtime artifacts (git-ignored, .gitkeep only)
-│   ├── README.md              # detailed backend documentation
-│   ├── TODO.md                # phase checklists and validation logs
-│   ├── pyproject.toml         # authoritative dependencies (Python 3.14, exact pins)
-│   ├── uv.lock                # lockfile resolved from pyproject.toml
-│   ├── requirements.txt       # generated pip-compatible export (hashes)
-│   ├── scripts/               # fresh-install integration check
-│   ├── pytest.ini
-│   └── .env.example
-├── README.md                  # this file
-└── LICENSE
+├── package.json
+└── vite.config.ts
 ```
 
-The frontend is a static SPA that talks to the backend over JSON. The backend is the only
-component that contacts IRSA; the browser never does.
+## Getting Started
 
-> Note: `backend/main.py` is the original frontend-connection stub and is retained
-> unchanged for history. The production backend entry point is `backend/app/main.py`
-> (run with `uvicorn app.main:app`), and `backend/pyproject.toml` now describes the real
-> backend, documented in [`backend/README.md`](backend/README.md).
+### Prerequisites
 
-## Backend capabilities
+- Python 3.14 (or Python 3.11+)
+- Node.js 20+
+- Network access to IRSA for live queries
 
-Implemented and verified in source and tests:
-
-- **SPHEREx observation discovery** — IRSA SIA2 cone search, VOTable parsing, metadata mapping.
-- **Multi-epoch timeline generation** — normalization, duplicate removal, `obs_id` epoch grouping, quality/warning summary.
-- **FITS download and cutout retrieval** — streamed, size-capped, retried, hash-addressed local cache.
-- **WCS validation** — celestial WCS extraction, target-in-footprint check, footprint and pixel scale.
-- **FITS inspection** — HDUs by `EXTNAME`, statistics, FLAGS mask bits, VARIANCE, EPSF PSF metrics.
-- **Image reprojection** — resampling onto a reference product's WCS/grid with invalid-pixel propagation.
-- **Image alignment validation** — FFT phase-correlation residual measurement (measured, never applied).
-- **Scientific image comparison** — prerequisite checks (units, coverage, alignment, PSF), background estimation, photometric scaling.
-- **Difference-image generation** — `D = I_b - α·I_a` with uncertainty and mask products, written as separate FITS files.
-- **Quality assessment and provenance** — `PASS`/`WARNING`/`FAIL` per check, input checksums, software versions, deterministic cache key.
-
-API endpoints:
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/` | frontend connectivity check |
-| `GET` | `/api/v1/health` | liveness |
-| `POST` | `/api/v1/observations/search` | cone search |
-| `GET` | `/api/v1/observations/{observation_id}` | product metadata |
-| `POST` | `/api/v1/observations/{observation_id}/cutout` | FITS cutout + preview |
-| `GET` | `/api/v1/targets/timeline` | multi-epoch timeline |
-| `POST` | `/api/v1/images/inspect` | FITS inspection |
-| `POST` | `/api/v1/images/compare` | validated pairwise comparison |
-| `GET` | `/api/v1/images/comparisons/{comparison_id}` | stored comparison record |
-| `GET` | `/api/v1/files/{filename}` | generated FITS/PNG files |
-
-Full field-level contracts, error codes and scientific limitations are in
-[`backend/README.md`](backend/README.md) and
-[`backend/docs/FRONTEND_INTEGRATION.md`](backend/docs/FRONTEND_INTEGRATION.md).
-
-## Frontend
-
-The frontend is a React 19 + TypeScript + Vite app styled with Tailwind CSS. It reads the
-API origin from `VITE_API_URL` (see `.env.example`, default `http://localhost:8000`) and
-uses `GET /` as its backend connectivity check.
-
-```bash
-# from the repository root
-cp .env.example .env
-pnpm install
-pnpm run dev
-```
-
-Available scripts: `pnpm run dev`, `pnpm run build`, `pnpm run lint`, `pnpm run preview`.
-
-The frontend is maintained separately; backend changes must not modify it.
-
-## Local development
-
-### Backend
+### Backend Setup
 
 ```bash
 cd backend
-
-uv sync                      # authoritative deps + lockfile (uv.lock)
-
 cp .env.example .env
 
+# Using uv
+uv sync
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# Or using pip
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-`backend/pyproject.toml` is the single dependency source; `backend/uv.lock` is the
-lockfile and `backend/requirements.txt` is a generated pip-compatible export
-(`pip install -r requirements.txt` also works).
+Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
 
-Python 3.14 is required and pinned in `backend/pyproject.toml`. `scipy` is required for
-reprojection and convolution; `reproject`, `photutils` and `scikit-image` are
-deliberately not dependencies (see the backend README).
-
-### API documentation
-
-Interactive OpenAPI docs: <http://localhost:8000/docs>
-
-## Testing
+### Frontend Setup
 
 ```bash
-cd backend
-
-uv run pytest -q                    # deterministic suite, no network
-uv run python -m compileall -q app tests scripts
-uv run python -m pyflakes app tests scripts
+# From the repository root
+cp .env.example .env
+npm install
+npm run dev
 ```
 
-Fresh-install verification (throwaway venv, installs only from `uv.lock`, runs the
-integration check, the suite, compile and lint, and confirms the frontend is untouched):
+The application will be available at `http://localhost:5173`.
 
-```bash
-cd backend
-./scripts/fresh_install_check.sh
-```
+## API Endpoints
 
-Live IRSA tests are opt-in and never run by default:
-
-```bash
-RUN_LIVE=1 uv run pytest -q tests/test_live_integration.py \
-  tests/test_live_api_workflow.py tests/test_live_timeline.py \
-  tests/test_live_image_comparison.py
-```
-
-Current deterministic suite: **223 passed, 6 skipped** (the skips are the opt-in live
-tests). Live validation on 2026-11-14 inspected a real SPHEREx product and compared two
-D3 epochs 33 days apart (all checks `PASS`, 89.2 % coverage, 0.03 px residual).
-
-## Project roadmap
-
-| Phase | Scope | Status |
+| Method | Endpoint | Description |
 |---|---|---|
-| 1 | Multi-epoch observation discovery | Completed |
-| 2 | Scientific image processing and comparison | Completed |
-| 3 | Source detection, photometry and time-domain analysis | Pending |
-| 4 | Spectral data processing | Pending |
-| 5 | Gaia integration | Pending |
-| 6 | WISE/NEOWISE integration | Pending |
+| GET | `/api/v1/health` | Backend service health and default collection |
+| GET | `/api/v1/telemetry` | Local storage usage and subsystem statistics |
+| GET | `/api/v1/targets/timeline` | Multi-epoch observation discovery via IRSA SIA2 |
+| POST | `/api/v1/observations/search` | Spatial cone search across SPHEREx archive |
+| POST | `/api/v1/observations/{id}/cutout` | FITS cutout retrieval and PNG preview generation |
+| POST | `/api/v1/images/inspect` | FITS header and WCS astrometry inspection |
+| POST | `/api/v1/images/compare` | Multi-epoch image reprojection and difference computation |
+| POST | `/api/v1/lightcurves/target` | Multi-epoch aperture photometry and light curve extraction |
+| POST | `/api/v1/spectra/extract` | 1D spectral cube extraction |
+| POST | `/api/v1/spectra/compare` | Cross-epoch spectral correlation and comparison |
+| POST | `/api/v1/gaia/search` | Gaia DR3 cone search |
+| GET | `/api/v1/gaia/sources/{id}` | Gaia DR3 source cross-match association |
+| GET | `/api/v1/files/{filename}` | Download generated FITS and PNG preview files |
 
-Status labels describe project progress; they are not a substitute for running the tests.
+## Running Tests
 
-## Prerequisites
+### Frontend Tests
 
-- Node.js and pnpm (frontend)
-- Python 3.14 (backend)
-- Network access to IRSA for live data
+```bash
+npm test          # Run node:test unit test suite
+npm run lint      # Run oxlint
+npm run build     # Verify TypeScript build and Vite bundle
+```
 
-## Usage
+### Backend Tests
 
-1. Start the backend (`uvicorn app.main:app --host 127.0.0.1 --port 8000`).
-2. Start the frontend (`pnpm run dev`) and open <http://localhost:5173>.
-3. Use the connectivity check to confirm the backend is reachable.
+```bash
+cd backend
+python -m pytest tests/
+```
+
+To run opt-in live network integration tests against IRSA:
+
+```bash
+RUN_LIVE=1 python -m pytest tests/test_live_integration.py
+```
 
 ## License
 
