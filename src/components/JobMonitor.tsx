@@ -10,15 +10,10 @@ import {
   operationMonitor,
   type MonitoredOperation,
   type OperationStatus,
-  type WorkspaceTab,
 } from "@/lib/operationMonitor";
 import { TwinOrbit } from "@/components/loading-ui/twin-orbit";
 
-interface JobMonitorProps {
-  onNavigateTab?: (tab: WorkspaceTab) => void;
-}
-
-export default function JobMonitor({ onNavigateTab }: JobMonitorProps) {
+export default function JobMonitor() {
   // Telemetry state
   const [telemetry, setTelemetry] = useState<StorageTelemetryResponse | null>(null);
   const [health, setHealth] = useState<BackendHealthResponse | null>(null);
@@ -538,15 +533,6 @@ export default function JobMonitor({ onNavigateTab }: JobMonitorProps) {
                 {selectedOp.workspace}
               </span>
             </div>
-
-            {onNavigateTab && (
-              <button
-                onClick={() => onNavigateTab(selectedOp.workspace)}
-                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs uppercase cursor-pointer"
-              >
-                Jump to {selectedOp.workspace.toUpperCase()} Workspace →
-              </button>
-            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">

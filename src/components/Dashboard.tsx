@@ -980,9 +980,7 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
         )}
 
         {/* WORKSPACE 6: OBSERVATORY JOB MONITOR */}
-        {activeNavTab === "jobs" && (
-          <JobMonitor onNavigateTab={(tab) => setActiveNavTab(tab as ActiveNavTab)} />
-        )}
+        {activeNavTab === "jobs" && <JobMonitor />}
       </main>
     </div>
   );
