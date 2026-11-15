@@ -49,9 +49,24 @@ htmlcov/
 backend/storage/fits/*
 backend/storage/previews/*
 backend/storage/comparisons/*
+backend/storage/sources/*
+backend/storage/lightcurves/*
 !backend/storage/fits/.gitkeep
 !backend/storage/previews/.gitkeep
 !backend/storage/comparisons/.gitkeep
+!backend/storage/sources/.gitkeep
+!backend/storage/lightcurves/.gitkeep
+
+storage/fits/*
+storage/previews/*
+storage/comparisons/*
+storage/sources/*
+storage/lightcurves/*
+!storage/fits/.gitkeep
+!storage/previews/.gitkeep
+!storage/comparisons/.gitkeep
+!storage/sources/.gitkeep
+!storage/lightcurves/.gitkeep
 
 # OS metadata
 .DS_Store

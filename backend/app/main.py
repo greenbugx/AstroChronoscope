@@ -85,6 +85,51 @@ def health() -> dict[str, object]:
     }
 
 
+@app.get(f"{_settings.api_prefix}/telemetry", tags=["ops"], summary="Observatory cache and storage telemetry", include_in_schema=False)
+def telemetry() -> dict[str, object]:
+    from pathlib import Path
+    def count_and_size(path: Path) -> dict[str, int]:
+        if not path.exists():
+            return {"count": 0, "size_bytes": 0}
+        files = [p for p in path.iterdir() if p.is_file()]
+        return {"count": len(files), "size_bytes": sum(p.stat().st_size for p in files)}
+
+    storage_fits = count_and_size(_settings.fits_dir)
+    storage_previews = count_and_size(_settings.previews_dir)
+    storage_comparisons = count_and_size(_settings.comparisons_dir)
+    storage_sources = count_and_size(_settings.sources_dir)
+    storage_lightcurves = count_and_size(_settings.lightcurves_dir)
+
+    return {
+        "success": True,
+        "status": "ok",
+        "version": VERSION,
+        "default_collection": _settings.default_collection,
+        "sia_endpoint": _settings.sia_endpoint,
+        "storage": {
+            "fits": storage_fits,
+            "previews": storage_previews,
+            "comparisons": storage_comparisons,
+            "sources": storage_sources,
+            "lightcurves": storage_lightcurves,
+            "total_files": (
+                storage_fits["count"]
+                + storage_previews["count"]
+                + storage_comparisons["count"]
+                + storage_sources["count"]
+                + storage_lightcurves["count"]
+            ),
+            "total_size_bytes": (
+                storage_fits["size_bytes"]
+                + storage_previews["size_bytes"]
+                + storage_comparisons["size_bytes"]
+                + storage_sources["size_bytes"]
+                + storage_lightcurves["size_bytes"]
+            ),
+        },
+    }
+
+
 def _error_payload(code: str, message: str, details: dict | None = None) -> dict:
     return {"success": False, "error": {"code": code, "message": message, "details": details}}
 

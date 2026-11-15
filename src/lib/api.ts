@@ -304,6 +304,220 @@ export interface ComparisonResponse {
   };
 }
 
+// ------------------------------------------------------------------
+// Phase 3: Source Detection, Aperture Photometry & Light Curves
+// ------------------------------------------------------------------
+
+export type SourceQuality = 'PASS' | 'WARNING' | 'FAIL' | 'NOT_VERIFIED';
+
+export interface DetectionConfig {
+  threshold_sigma?: number;
+  min_area_px?: number;
+  max_sources?: number;
+  filter_fwhm_px?: number;
+  edge_margin_px?: number;
+  background_mesh?: number;
+  deblend?: boolean;
+}
+
+export interface DetectionRequest {
+  observation_id: string;
+  ra?: number;
+  dec?: number;
+  size?: number;
+  config?: DetectionConfig;
+}
+
+export interface DetectedSource {
+  detection_id: string;
+  source_id?: string | null;
+  x: number;
+  y: number;
+  ra_deg?: number | null;
+  dec_deg?: number | null;
+  peak_value?: number | null;
+  source_area: number;
+  centroid_x: number;
+  centroid_y: number;
+  detection_snr?: number | null;
+  centroid_error_px?: number | null;
+  centroid_error_arcsec?: number | null;
+  fwhm_px?: number | null;
+  fwhm_arcsec?: number | null;
+  ellipticity?: number | null;
+  orientation_deg?: number | null;
+  background_level?: number | null;
+  noise_sigma?: number | null;
+  blended: boolean;
+  flags: string[];
+  quality: SourceQuality;
+}
+
+export interface DetectionResponse {
+  success: boolean;
+  observation_id: string;
+  source: 'cutout' | 'product';
+  source_url?: string | null;
+  target?: TargetCoordinates | null;
+  size_deg?: number | null;
+  detections: DetectedSource[];
+  total_detections: number;
+  truncated: boolean;
+  quality: {
+    overall_status: SourceQuality;
+    warnings: string[];
+  };
+}
+
+export interface PhotometryConfig {
+  aperture_fwhm_factor?: number;
+  annulus_inner_factor?: number;
+  annulus_outer_factor?: number;
+  aperture_oversample?: number;
+  min_valid_fraction?: number;
+}
+
+export interface PhotometryRequest {
+  observation_id: string;
+  ra?: number;
+  dec?: number;
+  size?: number;
+  detection?: DetectionConfig;
+  config?: PhotometryConfig;
+}
+
+export interface FluxMeasurement {
+  detection_id: string;
+  observation_id: string;
+  obs_publisher_did?: string | null;
+  band?: string | null;
+  observation_time?: string | null;
+  time_mjd?: number | null;
+  x: number;
+  y: number;
+  ra_deg?: number | null;
+  dec_deg?: number | null;
+  centroid_error_px?: number | null;
+  centroid_error_arcsec?: number | null;
+  aperture_radius_px: number;
+  aperture_radius_arcsec?: number | null;
+  aperture_valid_fraction: number;
+  psf_fwhm_px: number;
+  flux_mjy?: number | null;
+  flux_jy?: number | null;
+  flux_jy_error?: number | null;
+  snr?: number | null;
+  quality: SourceQuality;
+  flags: string[];
+}
+
+export interface PhotometryResponse {
+  success: boolean;
+  observation_id: string;
+  measurements: FluxMeasurement[];
+  total_measurements: number;
+  quality: {
+    overall_status: SourceQuality;
+    warnings: string[];
+  };
+}
+
+export interface LightCurvePoint {
+  time_utc?: string | null;
+  time_mjd?: number | null;
+  flux_jy: number;
+  flux_jy_error?: number | null;
+  unit: string;
+  band?: string | null;
+  observation_id: string;
+  detection_id: string;
+  snr?: number | null;
+  quality: SourceQuality;
+  flags: string[];
+}
+
+export interface VariabilityMetrics {
+  algorithm_version: string;
+  status: 'computed' | 'insufficient_data' | 'undefined_uncertainties';
+  unit: string;
+  n_points: number;
+  mean_flux_jy?: number | null;
+  median_flux_jy?: number | null;
+  weighted_mean_flux_jy?: number | null;
+  sample_std_jy?: number | null;
+  mad_jy?: number | null;
+  robust_sigma_jy?: number | null;
+  fractional_variability?: number | null;
+  chi2?: number | null;
+  dof?: number | null;
+  reduced_chi2?: number | null;
+  chi2_pvalue?: number | null;
+  peak_to_peak_jy?: number | null;
+  robust_range_jy?: number | null;
+  min_flux_jy?: number | null;
+  max_flux_jy?: number | null;
+  temporal_baseline_days?: number | null;
+  max_gap_days?: number | null;
+  flags: string[];
+}
+
+export interface LightCurveSeries {
+  band?: string | null;
+  points: LightCurvePoint[];
+  expected_epochs: number;
+  non_detections: number;
+  metrics: VariabilityMetrics;
+}
+
+export interface SourceLightCurve {
+  source_id: string;
+  reference_ra_deg: number;
+  reference_dec_deg: number;
+  epoch_count: number;
+  bands: string[];
+  position_scatter_arcsec?: number | null;
+  series: LightCurveSeries[];
+  flags: string[];
+}
+
+export interface TargetLightCurveRequest {
+  ra: number;
+  dec: number;
+  radius_deg?: number;
+  cutout_size_deg?: number;
+  collection?: string;
+  bands?: string[];
+  start_date?: string;
+  end_date?: string;
+  max_observations?: number;
+  detection?: DetectionConfig;
+  photometry?: PhotometryConfig;
+}
+
+export interface TargetLightCurveResponse {
+  success: boolean;
+  target: TargetCoordinates;
+  epochs_considered: number;
+  epochs_processed: number;
+  products_processed: number;
+  sources: SourceLightCurve[];
+  failures: Array<{ epoch_key?: string; observation_id?: string; band?: string; code: string; message: string }>;
+  warnings: string[];
+}
+
+export interface SourceDetailResponse {
+  success: boolean;
+  source: {
+    source_id: string;
+    reference_ra_deg: number;
+    reference_dec_deg: number;
+    detection_count: number;
+    epoch_count: number;
+    bands: string[];
+    flags: string[];
+  };
+}
+
 export interface ApiErrorPayload {
   code: string;
   message: string;
@@ -427,6 +641,65 @@ export async function compareImages(payload: CompareRequest): Promise<Comparison
 /** Retrieve an existing comparison record */
 export async function getComparison(comparisonId: string): Promise<ComparisonResponse> {
   return request<ComparisonResponse>(`/api/v1/images/comparisons/${encodeURIComponent(comparisonId)}`);
+}
+
+/** Detect compact sources in one SPHEREx epoch product */
+export async function detectSources(payload: DetectionRequest): Promise<DetectionResponse> {
+  return request<DetectionResponse>('/api/v1/sources/detect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Measure aperture photometry for detected sources in an epoch */
+export async function measurePhotometry(payload: PhotometryRequest): Promise<PhotometryResponse> {
+  return request<PhotometryResponse>('/api/v1/sources/photometry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Generate cross-epoch light curves with variability metrics */
+export async function getTargetLightCurve(payload: TargetLightCurveRequest): Promise<TargetLightCurveResponse> {
+  return request<TargetLightCurveResponse>('/api/v1/targets/lightcurve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+/** Retrieve a persisted source catalog record */
+export async function getSource(sourceId: string): Promise<SourceDetailResponse> {
+  return request<SourceDetailResponse>(`/api/v1/sources/${encodeURIComponent(sourceId)}`);
+}
+
+export interface StorageDirectoryTelemetry {
+  count: number;
+  size_bytes: number;
+}
+
+export interface StorageTelemetryResponse {
+  success: boolean;
+  status: string;
+  version: string;
+  default_collection: string;
+  sia_endpoint: string;
+  storage: {
+    fits: StorageDirectoryTelemetry;
+    previews: StorageDirectoryTelemetry;
+    comparisons: StorageDirectoryTelemetry;
+    sources: StorageDirectoryTelemetry;
+    lightcurves: StorageDirectoryTelemetry;
+    total_files: number;
+    total_size_bytes: number;
+  };
+}
+
+/** Retrieve observatory storage and cache telemetry */
+export async function getStorageTelemetry(): Promise<StorageTelemetryResponse> {
+  return request<StorageTelemetryResponse>('/api/v1/telemetry');
 }
 
 /** Helper to convert backend file paths into absolute URLs */
