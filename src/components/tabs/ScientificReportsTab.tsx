@@ -11,6 +11,7 @@ import {
   type SourceGaiaAssociationResponse,
   type GaiaConeSearchResponse,
 } from "@/lib/api";
+import { getBenchmarkTargetById } from "@/data/benchmarkTargets";
 
 export interface ScientificReportsTabProps {
   ra: string;
@@ -30,6 +31,7 @@ export interface ScientificReportsTabProps {
   spectralComparison?: SpectralComparisonResponse | null;
   sourceGaiaAssociation?: SourceGaiaAssociationResponse | null;
   gaiaConeSearchResult?: GaiaConeSearchResponse | null;
+  selectedBenchmarkId?: string | null;
   onNavigateTab: (tab: "discovery" | "explorer" | "differential" | "timedomain" | "reports") => void;
 }
 
@@ -51,6 +53,7 @@ export default function ScientificReportsTab({
   spectralComparison,
   sourceGaiaAssociation,
   gaiaConeSearchResult,
+  selectedBenchmarkId,
   onNavigateTab,
 }: ScientificReportsTabProps) {
   // Section toggle state
@@ -68,6 +71,7 @@ export default function ScientificReportsTab({
   const activeSource = lightCurveData?.sources?.find((s) => s.source_id === selectedSourceId) || lightCurveData?.sources?.[0];
   const activeSeries = activeSource?.series?.[0];
   const metrics = activeSeries?.metrics;
+  const benchmarkTarget = selectedBenchmarkId ? getBenchmarkTargetById(selectedBenchmarkId) : null;
 
   // JSON Export Handler
   const handleExportJson = () => {
@@ -82,6 +86,15 @@ export default function ScientificReportsTab({
         collection: collection,
         frame: "ICRS (J2000)",
       },
+      benchmark_target: benchmarkTarget ? {
+        id: benchmarkTarget.id,
+        name: benchmarkTarget.name,
+        classification: benchmarkTarget.classification,
+        aliases: benchmarkTarget.aliases,
+        coordinates_icrs: benchmarkTarget.coordinates,
+        proper_motion: benchmarkTarget.properMotion,
+        references: benchmarkTarget.references,
+      } : null,
       discovery_summary: timelineData ? {
         unique_epochs: timelineData.unique_epochs,
         total_products: timelineData.total_products,
@@ -307,6 +320,16 @@ export default function ScientificReportsTab({
         {/* Document Header */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-neutral-800 pb-4">
           <div className="flex flex-col gap-0.5">
+            {benchmarkTarget && (
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="px-2 py-0.5 bg-blue-950/40 border border-blue-500/40 text-blue-300 font-bold text-xs uppercase">
+                  NASA Benchmark: {benchmarkTarget.name}
+                </span>
+                <span className="text-neutral-400 text-xs">
+                  [{benchmarkTarget.classification}]
+                </span>
+              </div>
+            )}
             <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">
               SPHEREx SCIENTIFIC INVESTIGATION REPORT
             </span>

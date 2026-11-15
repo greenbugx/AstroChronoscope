@@ -23,6 +23,11 @@ import {
   type GaiaConeSearchResponse,
   type SourceGaiaAssociationResponse,
 } from "@/lib/api";
+import {
+  BENCHMARK_TARGETS,
+  getBenchmarkTargetById,
+  propagateTargetCoordinates,
+} from "@/data/benchmarkTargets";
 
 import DiscoveryTab from "./tabs/DiscoveryTab";
 import ImageExplorerTab from "./tabs/ImageExplorerTab";
@@ -34,17 +39,6 @@ import JobMonitor from "./JobMonitor";
 interface DashboardProps {
   onReturnToLanding: () => void;
 }
-
-// Benchmark preset for Planet X candidate search
-const BENCHMARK_TARGET = {
-  name: "Planet X Benchmark Candidate",
-  ra: 156.09328159,
-  dec: -41.64466331,
-  radius: 0.01,
-  size: 0.1,
-  frame: "ICRS (J2000)",
-  collection: "spherex_qr3",
-};
 
 export type ActiveNavTab = "discovery" | "explorer" | "differential" | "timedomain" | "reports" | "jobs";
 
@@ -76,12 +70,17 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   // Five Primary Workspaces Navigation
   const [activeNavTab, setActiveNavTab] = useState<ActiveNavTab>("discovery");
 
+  // NASA Benchmark Target Preset State
+  const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<string | null>("barnards_star");
+  const [isCustomizedCoords, setIsCustomizedCoords] = useState<boolean>(false);
+  const [usePropagatedEpoch, setUsePropagatedEpoch] = useState<boolean>(false);
+
   // Target Query Parameters
-  const [ra, setRa] = useState<string>(BENCHMARK_TARGET.ra.toString());
-  const [dec, setDec] = useState<string>(BENCHMARK_TARGET.dec.toString());
-  const [radius, setRadius] = useState<string>(BENCHMARK_TARGET.radius.toString());
-  const [cutoutSize, setCutoutSize] = useState<string>(BENCHMARK_TARGET.size.toString());
-  const [collection, setCollection] = useState<string>(BENCHMARK_TARGET.collection);
+  const [ra, setRa] = useState<string>(BENCHMARK_TARGETS[0].coordinates.ra.toFixed(6));
+  const [dec, setDec] = useState<string>(BENCHMARK_TARGETS[0].coordinates.dec.toFixed(6));
+  const [radius, setRadius] = useState<string>(BENCHMARK_TARGETS[0].search.defaultRadius.toString());
+  const [cutoutSize, setCutoutSize] = useState<string>("0.05");
+  const [collection, setCollection] = useState<string>("spherex_qr3");
   const [selectedBandFilter, setSelectedBandFilter] = useState<string>("ALL");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -167,13 +166,76 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     }
   };
 
-  // Load Benchmark Preset
+  // NASA Benchmark Target Handlers
+  const handleSelectBenchmark = (targetId: string) => {
+    if (!targetId) {
+      setSelectedBenchmarkId(null);
+      setIsCustomizedCoords(false);
+      setUsePropagatedEpoch(false);
+      return;
+    }
+
+    const target = getBenchmarkTargetById(targetId);
+    if (!target) return;
+
+    setSelectedBenchmarkId(target.id);
+    setIsCustomizedCoords(false);
+    setUsePropagatedEpoch(false);
+    setRa(target.coordinates.ra.toFixed(6));
+    setDec(target.coordinates.dec.toFixed(6));
+    setRadius(target.search.defaultRadius.toString());
+  };
+
+  const handleClearBenchmark = () => {
+    setSelectedBenchmarkId(null);
+    setIsCustomizedCoords(false);
+    setUsePropagatedEpoch(false);
+  };
+
+  const handleTogglePropagateEpoch = () => {
+    if (!selectedBenchmarkId) return;
+    const target = getBenchmarkTargetById(selectedBenchmarkId);
+    if (!target || !target.properMotion) return;
+
+    if (!usePropagatedEpoch) {
+      const prop = propagateTargetCoordinates(target, 2026.5);
+      setRa(prop.ra.toFixed(6));
+      setDec(prop.dec.toFixed(6));
+      setUsePropagatedEpoch(true);
+      setIsCustomizedCoords(false);
+    } else {
+      setRa(target.coordinates.ra.toFixed(6));
+      setDec(target.coordinates.dec.toFixed(6));
+      setUsePropagatedEpoch(false);
+      setIsCustomizedCoords(false);
+    }
+  };
+
+  const handleUpdateCoords = (newRa: string, newDec: string, newRadius: string, newCutout: string) => {
+    setRa(newRa);
+    setDec(newDec);
+    setRadius(newRadius);
+    setCutoutSize(newCutout);
+
+    if (selectedBenchmarkId) {
+      const target = getBenchmarkTargetById(selectedBenchmarkId);
+      if (target) {
+        const expectedRa = usePropagatedEpoch
+          ? propagateTargetCoordinates(target, 2026.5).ra.toFixed(6)
+          : target.coordinates.ra.toFixed(6);
+        const expectedDec = usePropagatedEpoch
+          ? propagateTargetCoordinates(target, 2026.5).dec.toFixed(6)
+          : target.coordinates.dec.toFixed(6);
+
+        if (newRa !== expectedRa || newDec !== expectedDec) {
+          setIsCustomizedCoords(true);
+        }
+      }
+    }
+  };
+
   const handleLoadBenchmark = () => {
-    setRa(BENCHMARK_TARGET.ra.toString());
-    setDec(BENCHMARK_TARGET.dec.toString());
-    setRadius(BENCHMARK_TARGET.radius.toString());
-    setCutoutSize(BENCHMARK_TARGET.size.toString());
-    setCollection(BENCHMARK_TARGET.collection);
+    handleSelectBenchmark("barnards_star");
   };
 
   // Execute SIA2 Discovery Query
@@ -628,12 +690,13 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             selectedProduct={selectedProduct}
             comparisonProductA={comparisonProductA}
             comparisonProductB={comparisonProductB}
-            onUpdateCoords={(newRa, newDec, newRadius, newCutoutSize) => {
-              setRa(newRa);
-              setDec(newDec);
-              setRadius(newRadius);
-              setCutoutSize(newCutoutSize);
-            }}
+            selectedBenchmarkId={selectedBenchmarkId}
+            isCustomizedCoords={isCustomizedCoords}
+            usePropagatedEpoch={usePropagatedEpoch}
+            onSelectBenchmark={handleSelectBenchmark}
+            onClearBenchmark={handleClearBenchmark}
+            onTogglePropagateEpoch={handleTogglePropagateEpoch}
+            onUpdateCoords={handleUpdateCoords}
             onUpdateFilters={(newColl, newBand, newStart, newEnd) => {
               setCollection(newColl);
               setSelectedBandFilter(newBand);
@@ -752,6 +815,7 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
             spectralComparison={spectralComparison}
             sourceGaiaAssociation={sourceGaiaAssociation}
             gaiaConeSearchResult={gaiaConeSearchResult}
+            selectedBenchmarkId={selectedBenchmarkId}
             onNavigateTab={(tab) => setActiveNavTab(tab)}
           />
         )}
