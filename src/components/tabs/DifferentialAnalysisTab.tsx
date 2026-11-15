@@ -5,6 +5,7 @@ import {
   getFileUrl,
   createCutout,
 } from "@/lib/api";
+import { operationMonitor } from "@/lib/operationMonitor";
 import { TwinOrbit } from "@/components/loading-ui/twin-orbit";
 
 export interface DifferentialAnalysisTabProps {
@@ -56,12 +57,30 @@ export default function DifferentialAnalysisTab({
     const loadPreviews = async () => {
       setIsLoadingPreviews(true);
       try {
-        if (epochA?.observation_id) {
-          const resA = await createCutout(epochA.observation_id, {
-            ra: raNum,
-            dec: decNum,
-            size: sizeNum,
-          });
+        const obsIdA = epochA?.observation_id;
+        if (obsIdA) {
+          const labelA = epochA.observation_time || epochA.start_time || "Ref";
+          const resA = await operationMonitor.executeOperation(
+            {
+              name: "Differential Epoch A Cutout",
+              category: "differential",
+              workspace: "differential",
+              context: {
+                observationId: obsIdA,
+                ra: raNum,
+                dec: decNum,
+                radius: sizeNum,
+                label: `Epoch A: ${labelA}`,
+              },
+              dedupKey: `diff-preview:${obsIdA}:${sizeNum}`,
+            },
+            () =>
+              createCutout(obsIdA, {
+                ra: raNum,
+                dec: decNum,
+                size: sizeNum,
+              })
+          );
           if (!isCancelled && resA.cutout?.preview_url) {
             setPreviewUrlA(resA.cutout.preview_url);
           }
@@ -69,12 +88,30 @@ export default function DifferentialAnalysisTab({
           setPreviewUrlA(null);
         }
 
-        if (epochB?.observation_id) {
-          const resB = await createCutout(epochB.observation_id, {
-            ra: raNum,
-            dec: decNum,
-            size: sizeNum,
-          });
+        const obsIdB = epochB?.observation_id;
+        if (obsIdB) {
+          const labelB = epochB.observation_time || epochB.start_time || "Target";
+          const resB = await operationMonitor.executeOperation(
+            {
+              name: "Differential Epoch B Cutout",
+              category: "differential",
+              workspace: "differential",
+              context: {
+                observationId: obsIdB,
+                ra: raNum,
+                dec: decNum,
+                radius: sizeNum,
+                label: `Epoch B: ${labelB}`,
+              },
+              dedupKey: `diff-preview:${obsIdB}:${sizeNum}`,
+            },
+            () =>
+              createCutout(obsIdB, {
+                ra: raNum,
+                dec: decNum,
+                size: sizeNum,
+              })
+          );
           if (!isCancelled && resB.cutout?.preview_url) {
             setPreviewUrlB(resB.cutout.preview_url);
           }
@@ -95,7 +132,17 @@ export default function DifferentialAnalysisTab({
     return () => {
       isCancelled = true;
     };
-  }, [epochA?.observation_id, epochB?.observation_id, ra, dec, cutoutSize]);
+  }, [
+    epochA?.observation_id,
+    epochA?.observation_time,
+    epochA?.start_time,
+    epochB?.observation_id,
+    epochB?.observation_time,
+    epochB?.start_time,
+    ra,
+    dec,
+    cutoutSize,
+  ]);
 
   const hasBothEpochs = !!(epochA && epochB);
   const isDifferentObservation = epochA?.observation_id !== epochB?.observation_id;

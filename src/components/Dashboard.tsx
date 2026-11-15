@@ -28,6 +28,7 @@ import {
   getBenchmarkTargetById,
   propagateTargetCoordinates,
 } from "@/data/benchmarkTargets";
+import { operationMonitor, useOperationMonitor } from "@/lib/operationMonitor";
 
 import DiscoveryTab from "./tabs/DiscoveryTab";
 import ImageExplorerTab from "./tabs/ImageExplorerTab";
@@ -74,6 +75,9 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<string | null>("barnards_star");
   const [isCustomizedCoords, setIsCustomizedCoords] = useState<boolean>(false);
   const [usePropagatedEpoch, setUsePropagatedEpoch] = useState<boolean>(false);
+
+  // Synchronous Operation Monitor hook
+  const { runningCount } = useOperationMonitor();
 
   // Target Query Parameters
   const [ra, setRa] = useState<string>(BENCHMARK_TARGETS[0].coordinates.ra.toFixed(6));
@@ -157,7 +161,16 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     setHealthStatus("connecting");
     setHealthError(null);
     try {
-      const res = await getBackendHealth();
+      const res = await operationMonitor.executeOperation(
+        {
+          name: "Observatory Link Heartbeat",
+          category: "telemetry",
+          workspace: "jobs",
+          context: { label: "FastAPI Daemon Health Probe" },
+          dedupKey: "health:refresh",
+        },
+        () => getBackendHealth()
+      );
       setHealth(res);
       setHealthStatus("online");
     } catch (err: unknown) {
@@ -252,15 +265,30 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     try {
       setIsTimelineLoading(true);
       setTimelineError(null);
-      const result = await getTargetTimeline({
-        ra: raNum,
-        dec: decNum,
-        radius: radiusNum,
-        collection: collection || undefined,
-        bands: selectedBandFilter === "ALL" ? undefined : [selectedBandFilter],
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
-      });
+      const result = await operationMonitor.executeOperation(
+        {
+          name: "IRSA SIA2 Target Discovery",
+          category: "discovery",
+          workspace: "discovery",
+          context: {
+            ra: raNum,
+            dec: decNum,
+            radius: radiusNum,
+            label: `Collection: ${collection || "spherex_qr3"}`,
+          },
+          dedupKey: `discovery:${raNum.toFixed(4)}:${decNum.toFixed(4)}:${radiusNum}`,
+        },
+        () =>
+          getTargetTimeline({
+            ra: raNum,
+            dec: decNum,
+            radius: radiusNum,
+            collection: collection || undefined,
+            bands: selectedBandFilter === "ALL" ? undefined : [selectedBandFilter],
+            start_date: startDate || undefined,
+            end_date: endDate || undefined,
+          })
+      );
 
       setTimelineData(result);
 
@@ -286,7 +314,8 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   // Generate Cutout for Selected Product (Image Explorer)
   const handleFetchCutout = useCallback(
     async (product: TimelineProduct) => {
-      if (!product.observation_id) return;
+      const obsId = product.observation_id;
+      if (!obsId) return;
       const raNum = parseFloat(ra);
       const decNum = parseFloat(dec);
       const sizeNum = parseFloat(cutoutSize) || 0.1;
@@ -294,11 +323,27 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
       try {
         setIsCutoutLoading(true);
         setCutoutError(null);
-        const res = await createCutout(product.observation_id, {
-          ra: raNum,
-          dec: decNum,
-          size: sizeNum,
-        });
+        const res = await operationMonitor.executeOperation(
+          {
+            name: "SPHEREx FITS Cutout Extraction",
+            category: "explorer",
+            workspace: "explorer",
+            context: {
+              observationId: obsId,
+              ra: raNum,
+              dec: decNum,
+              radius: sizeNum,
+              label: `Band: ${product.band || "Unknown"}`,
+            },
+            dedupKey: `cutout:${obsId}:${sizeNum}`,
+          },
+          () =>
+            createCutout(obsId, {
+              ra: raNum,
+              dec: decNum,
+              size: sizeNum,
+            })
+        );
         setCutoutData(res);
       } catch (err) {
         setCutoutError(err instanceof Error ? err.message : "ERR_IBE: Cutout extraction failed");
@@ -312,7 +357,8 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
   // Inspect FITS for Selected Product (Image Explorer)
   const handleInspectFITS = useCallback(
     async (product: TimelineProduct) => {
-      if (!product.observation_id) return;
+      const obsId = product.observation_id;
+      if (!obsId) return;
       const raNum = parseFloat(ra);
       const decNum = parseFloat(dec);
       const sizeNum = parseFloat(cutoutSize) || 0.1;
@@ -320,12 +366,27 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
       try {
         setIsInspectLoading(true);
         setInspectError(null);
-        const res = await inspectImage({
-          observation_id: product.observation_id,
-          ra: raNum,
-          dec: decNum,
-          size: sizeNum,
-        });
+        const res = await operationMonitor.executeOperation(
+          {
+            name: "FITS Header & WCS Astrometry Inspection",
+            category: "explorer",
+            workspace: "explorer",
+            context: {
+              observationId: obsId,
+              ra: raNum,
+              dec: decNum,
+              radius: sizeNum,
+            },
+            dedupKey: `inspect:${obsId}`,
+          },
+          () =>
+            inspectImage({
+              observation_id: obsId,
+              ra: raNum,
+              dec: decNum,
+              size: sizeNum,
+            })
+        );
         setInspectData(res);
       } catch (err) {
         setInspectError(err instanceof Error ? err.message : "ERR_HDU: FITS header inspection failed");
@@ -338,10 +399,15 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
 
   // Run Differential Comparison (Differential Analysis)
   const handleRunComparison = useCallback(async () => {
-    if (!comparisonProductA?.observation_id || !comparisonProductB?.observation_id) {
+    const obsIdA = comparisonProductA?.observation_id;
+    const obsIdB = comparisonProductB?.observation_id;
+    if (!obsIdA || !obsIdB) {
       setComparisonError("ERR_DIFF: Two distinct observation epochs required for differential comparison.");
       return;
     }
+
+    const labelA = comparisonProductA?.observation_time || comparisonProductA?.start_time || "Ref";
+    const labelB = comparisonProductB?.observation_time || comparisonProductB?.start_time || "Target";
 
     const raNum = parseFloat(ra);
     const decNum = parseFloat(dec);
@@ -350,13 +416,29 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     try {
       setIsComparing(true);
       setComparisonError(null);
-      const res = await compareImages({
-        observation_id_a: comparisonProductA.observation_id,
-        observation_id_b: comparisonProductB.observation_id,
-        ra: raNum,
-        dec: decNum,
-        size: sizeNum,
-      });
+      const res = await operationMonitor.executeOperation(
+        {
+          name: "Differential Reprojection & Subtraction",
+          category: "differential",
+          workspace: "differential",
+          context: {
+            observationId: `${obsIdA} / ${obsIdB}`,
+            ra: raNum,
+            dec: decNum,
+            radius: sizeNum,
+            label: `${labelA} vs ${labelB}`,
+          },
+          dedupKey: `diff:${obsIdA}:${obsIdB}`,
+        },
+        () =>
+          compareImages({
+            observation_id_a: obsIdA,
+            observation_id_b: obsIdB,
+            ra: raNum,
+            dec: decNum,
+            size: sizeNum,
+          })
+      );
       setComparisonResult(res);
     } catch (err) {
       setComparisonError(err instanceof Error ? err.message : "ERR_DIFF: Image reprojection/subtraction failed");
@@ -376,17 +458,32 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
       try {
         setIsLightCurveLoading(true);
         setLightCurveError(null);
-        const res = await getTargetLightCurve({
-          ra: raNum,
-          dec: decNum,
-          radius_deg: radiusNum,
-          cutout_size_deg: cutoutNum,
-          max_observations: maxObs,
-          bands: band === "ALL" ? undefined : [band],
-          detection: {
-            threshold_sigma: thresholdSigma,
+        const res = await operationMonitor.executeOperation(
+          {
+            name: "Time-Domain Aperture Photometry Light Curve",
+            category: "timedomain",
+            workspace: "timedomain",
+            context: {
+              ra: raNum,
+              dec: decNum,
+              radius: radiusNum,
+              label: `Max Obs: ${maxObs}, Band: ${band}`,
+            },
+            dedupKey: `lightcurve:${raNum.toFixed(4)}:${decNum.toFixed(4)}:${band}:${maxObs}`,
           },
-        });
+          () =>
+            getTargetLightCurve({
+              ra: raNum,
+              dec: decNum,
+              radius_deg: radiusNum,
+              cutout_size_deg: cutoutNum,
+              max_observations: maxObs,
+              bands: band === "ALL" ? undefined : [band],
+              detection: {
+                threshold_sigma: thresholdSigma,
+              },
+            })
+        );
         setLightCurveData(res);
         if (res.sources && res.sources.length > 0) {
           setSelectedSourceId(res.sources[0].source_id);
@@ -430,7 +527,25 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
           payload.dec = decNum;
         }
 
-        const res = await extractSpectrum(payload);
+        const res = await operationMonitor.executeOperation(
+          {
+            name: targetSourceId
+              ? `Spectral Extraction (${targetSourceId})`
+              : "Spectral Extraction (Coordinate)",
+            category: "timedomain",
+            workspace: "timedomain",
+            context: {
+              sourceId: targetSourceId,
+              ra: raNum,
+              dec: decNum,
+              label: `Method: ${method}`,
+            },
+            dedupKey: targetSourceId
+              ? `spectrum:source:${targetSourceId}`
+              : `spectrum:coord:${raNum.toFixed(4)}:${decNum.toFixed(4)}`,
+          },
+          () => extractSpectrum(payload)
+        );
         setSpectrumData(res);
       } catch (err) {
         setSpectrumError(err instanceof Error ? err.message : "Spectral cube extraction failed");
@@ -448,10 +563,23 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
         setIsSpectralComparing(true);
         setSpectralComparisonError(null);
 
-        const res = await compareSpectra({
-          spectrum_id_a: spectrumIdA,
-          spectrum_id_b: spectrumIdB,
-        });
+        const res = await operationMonitor.executeOperation(
+          {
+            name: "Cross-Epoch Spectral Comparison",
+            category: "timedomain",
+            workspace: "timedomain",
+            context: {
+              spectrumId: `${spectrumIdA} vs ${spectrumIdB}`,
+              label: "Residual & Correlation Analysis",
+            },
+            dedupKey: `spec-comp:${spectrumIdA}:${spectrumIdB}`,
+          },
+          () =>
+            compareSpectra({
+              spectrum_id_a: spectrumIdA,
+              spectrum_id_b: spectrumIdB,
+            })
+        );
         setSpectralComparison(res);
       } catch (err) {
         setSpectralComparisonError(err instanceof Error ? err.message : "Spectral comparison failed");
@@ -474,13 +602,28 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
       try {
         setIsGaiaSearching(true);
         setGaiaSearchError(null);
-        const res = await searchGaia({
-          ra: raNum,
-          dec: decNum,
-          radius_arcsec: customRadiusArcsec || 10,
-          magnitude_limit: customMagLimit,
-          limit: customLimit || 50,
-        });
+        const res = await operationMonitor.executeOperation(
+          {
+            name: "Gaia DR3 Cone Search",
+            category: "timedomain",
+            workspace: "timedomain",
+            context: {
+              ra: raNum,
+              dec: decNum,
+              radius: customRadiusArcsec || 10,
+              label: `Mag Limit: ${customMagLimit ?? "none"}, Max: ${customLimit || 50}`,
+            },
+            dedupKey: `gaia-cone:${raNum.toFixed(4)}:${decNum.toFixed(4)}:${customRadiusArcsec || 10}`,
+          },
+          () =>
+            searchGaia({
+              ra: raNum,
+              dec: decNum,
+              radius_arcsec: customRadiusArcsec || 10,
+              magnitude_limit: customMagLimit,
+              limit: customLimit || 50,
+            })
+        );
         setGaiaConeSearchResult(res);
       } catch (err) {
         setGaiaSearchError(err instanceof Error ? err.message : "Gaia cone search failed");
@@ -497,7 +640,19 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
       try {
         setIsGaiaAssociating(true);
         setSourceGaiaError(null);
-        const res = await getSourceGaiaAssociation(sourceId);
+        const res = await operationMonitor.executeOperation(
+          {
+            name: `Gaia DR3 Source Cross-Match (${sourceId})`,
+            category: "timedomain",
+            workspace: "timedomain",
+            context: {
+              sourceId,
+              label: "Cross-catalogue counterpart identification",
+            },
+            dedupKey: `gaia-assoc:${sourceId}`,
+          },
+          () => getSourceGaiaAssociation(sourceId)
+        );
         setSourceGaiaAssociation(res);
       } catch (err) {
         setSourceGaiaError(err instanceof Error ? err.message : "Gaia source association failed");
@@ -538,6 +693,12 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
 
           {/* Right: Telemetry & Mission Clock */}
           <div className="flex items-center gap-2 text-xs">
+            {runningCount > 0 && (
+              <div className="bg-blue-600/90 border border-blue-500 px-2.5 py-1 text-white font-bold text-xs uppercase flex items-center gap-1.5 animate-pulse">
+                <span>{runningCount} OP{runningCount > 1 ? "S" : ""} ACTIVE</span>
+              </div>
+            )}
+
             <div
               className={`px-3 py-1 font-bold text-xs uppercase border ${
                 healthStatus === "online"
@@ -638,13 +799,18 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
 
             <button
               onClick={() => setActiveNavTab("jobs")}
-              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap flex items-center gap-1.5 ${
                 activeNavTab === "jobs"
                   ? "bg-neutral-800 text-amber-300 border-neutral-600"
                   : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
-              Job Monitor
+              <span>Job Monitor</span>
+              {runningCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-blue-600 text-white text-[9px] font-bold animate-pulse">
+                  {runningCount}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -821,7 +987,9 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
         )}
 
         {/* WORKSPACE 6: OBSERVATORY JOB MONITOR */}
-        {activeNavTab === "jobs" && <JobMonitor />}
+        {activeNavTab === "jobs" && (
+          <JobMonitor onNavigateTab={(tab) => setActiveNavTab(tab as ActiveNavTab)} />
+        )}
       </main>
     </div>
   );
