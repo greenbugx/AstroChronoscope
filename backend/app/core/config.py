@@ -77,6 +77,16 @@ class Settings(BaseSettings):
     spectral_invalid_flag_bits: tuple[int, ...] = (1, 19)
     max_concurrent_spectral: int = 2
 
+    # Gaia Archive (Phase 5)
+    gaia_tap_endpoint: str = "https://gea.esac.esa.int/tap-server/tap/sync"
+    gaia_catalog: str = "gaiadr3.gaia_source"
+    gaia_user_agent: str = "PlanetX-GaiaDR3/1.0 (ESA Gaia TAP client)"
+    gaia_max_search_radius_arcsec: float = 60.0
+    gaia_default_search_radius_arcsec: float = 10.0
+    gaia_max_results: int = 1000
+    gaia_max_crossmatch_coordinates: int = 1000
+    gaia_max_cache_radius_arcsec: float = 30.0
+
     # Ops
     log_level: str = "INFO"
     cors_origins: tuple[str, ...] = (

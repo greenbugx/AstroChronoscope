@@ -8,9 +8,11 @@ from app.api.deps import (
     get_photometry_service,
     get_source_catalog_service,
     get_source_detection_service,
+    get_source_gaia_association,
     get_spectral_service,
 )
 from app.schemas.common import ErrorResponse
+from app.schemas.gaia import SourceGaiaAssociationResponse
 from app.schemas.spectra import SourceSpectraResponse
 from app.schemas.lightcurve import (
     SourceDetailResponse,
@@ -19,6 +21,7 @@ from app.schemas.lightcurve import (
 )
 from app.schemas.photometry import PhotometryRequest, PhotometryResponse
 from app.schemas.sources import DetectionRequest, DetectionResponse
+from app.services.gaia_source_association import SourceGaiaAssociationService
 from app.services.photometry import PhotometryService
 from app.services.source_catalog import SourceCatalogService
 from app.services.source_detection import SourceDetectionService
@@ -99,6 +102,19 @@ def get_source_spectra(
     service: SpectralService = Depends(get_spectral_service),
 ) -> SourceSpectraResponse:
     return service.source_spectra(source_id)
+
+
+@router.get(
+    "/{source_id}/catalogs",
+    response_model=SourceGaiaAssociationResponse,
+    responses=_ERRORS,
+    summary="Gaia DR3 counterpart candidates for one persisted internal source",
+)
+def get_source_gaia_catalogs(
+    source_id: str,
+    service: SourceGaiaAssociationService = Depends(get_source_gaia_association),
+) -> SourceGaiaAssociationResponse:
+    return service.associate(source_id)
 
 
 @router.get(

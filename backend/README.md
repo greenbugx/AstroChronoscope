@@ -17,9 +17,11 @@ No mock observations, no synthetic FITS, no hardcoded observation metadata.
 > `GET /api/v1/sources/{id}`, `/lightcurve`, `/variability`) and **Phase 4 DR1 cube
 > spectral extraction + comparison** (`POST /api/v1/spectra/extract`,
 > `GET /api/v1/spectra/{id}`, `GET /api/v1/sources/{id}/spectra`,
-> `POST /api/v1/spectra/compare`) are implemented.
-> PSF photometry, forced photometry, multi-epoch spectra and candidate classification
-> remain **out of scope**.
+> `POST /api/v1/spectra/compare`) and **Phase 5 Gaia DR3 catalog integration**
+> (`GET /api/v1/catalogs/gaia/search`, `POST /api/v1/catalogs/gaia/crossmatch`,
+> `GET /api/v1/catalogs/gaia/{source_id}`, see `docs/GAIA_INTEGRATION.md`) are
+> implemented. PSF photometry, forced photometry, multi-epoch spectra and candidate
+> classification remain **out of scope**.
 
 ---
 
@@ -1452,6 +1454,71 @@ comparison of static mosaics at different samples, not evidence of temporal spec
 variability. No uncertainty, significance or ratio error is fabricated; the result is
 therefore `WARNING` when enough channels overlap and `FAIL` when they do not.
 
+### 4.21 Gaia DR3 catalog endpoints (Phase 5)
+
+Synchronous ESA Gaia Archive TAP queries against `gaiadr3.gaia_source` (verified live;
+details in `docs/GAIA_INTEGRATION.md`). Missing catalog measurements are `null`, never
+`0`. `source_id` is a string. Positions are ICRS at the Gaia reference epoch **J2016.0**.
+
+**`GET /catalogs/gaia/search`** — cone search.
+
+| Query param | Range | Default |
+|---|---|---|
+| `ra` | [0, 360) | required |
+| `dec` | [−90, 90] | required |
+| `radius_arcsec` | (0, 60] | 10 |
+| `magnitude_limit` | [−10, 30] | none |
+| `limit` | [1, 1000] | 1000 |
+
+```json
+{
+  "success": true,
+  "catalog": "Gaia DR3",
+  "query": {"ra": 156.09328159, "dec": -41.64466331, "radius_arcsec": 10.0,
+            "magnitude_limit": null, "limit": 5, "total_found": 1, "truncated": false},
+  "sources": [{
+    "source_id": "5416565780217346432",
+    "coordinates": {"ra": 156.09786, "dec": -41.64594, "reference_epoch": 2016.0,
+                    "ra_error_mas": 0.065, "dec_error_mas": 0.08},
+    "astrometry": {"parallax_mas": 0.362, "pmra_mas_yr": -8.867, "pmdec_mas_yr": 5.384,
+                   "ruwe": 1.039, "ruwe_note": "Renormalised unit weight error; …"},
+    "photometry": {"g": 17.94, "bp": 18.41, "rp": 17.32},
+    "provenance": {"catalog": "Gaia DR3", "retrieved_at": "2026-11-15T00:00:00+00:00",
+                   "query_reference": "…",
+                   "tap_endpoint": "https://gea.esac.esa.int/tap-server/tap/sync"}
+  }],
+  "separations_arcsec": [13.148498]
+}
+```
+
+Empty results are success (`total_found: 0`).
+
+**`POST /catalogs/gaia/crossmatch`** — match external coordinates against Gaia DR3.
+
+```json
+{
+  "coordinates": [{"external_id": "target-001", "ra": 180.123, "dec": 45.678, "epoch": 2020.5}],
+  "config": {"radius_arcsec": 3.0, "propagate_proper_motion": true}
+}
+```
+
+Statuses are `MATCHED` / `AMBIGUOUS` / `UNMATCHED`; a match is never forced and
+`best` is `null` for ambiguous results. Optional proper-motion propagation uses
+Astropy space motion from J2016.0 to the target epoch and reports
+`epoch.propagated`, the propagated coordinates, and a `limitation` string when
+propagation was skipped (missing PM, no epoch, …). Separations are great-circle
+arcseconds. **A coordinate match is not a confirmed physical association**, and a
+missing Gaia counterpart never invalidates a SPHEREx detection (Gaia is optical).
+
+**`GET /catalogs/gaia/{source_id}`** — one record by exact identifier;
+malformed ids → 400 `INVALID_GAIA_SOURCE_ID`, unknown ids → 404
+`GAIA_SOURCE_NOT_FOUND`.
+
+**`GET /sources/{source_id}/catalogs`** — Gaia DR3 association for one persisted
+Phase 3 source (see `docs/GAIA_INTEGRATION.md` §Source association). Unknown or
+malformed internal source ids → `404 SOURCE_NOT_FOUND`; Phase 3 ids are 32-hex
+internal identifiers and are never confused with Gaia's numeric `source_id`.
+
 ---
 
 ## 5. Error codes
@@ -1486,6 +1553,14 @@ therefore `WARNING` when enough channels overlap and `FAIL` when they do not.
 | 502 | `IRSA_HTTP_ERROR` | IRSA returned an HTTP error |
 | 502 | `IRSA_INVALID_RESPONSE` | IRSA returned non-VOTable / unparseable data |
 | 502 | `IRSA_QUERY_ERROR` | IRSA rejected the SIA query |
+| 400 | `INVALID_GAIA_SOURCE_ID` | malformed Gaia `source_id` |
+| 404 | `GAIA_SOURCE_NOT_FOUND` | no Gaia DR3 record for a well-formed id |
+| 502 | `GAIA_HTTP_ERROR` | Gaia Archive returned an HTTP error |
+| 502 | `GAIA_QUERY_ERROR` | Gaia Archive rejected the ADQL query |
+| 502 | `GAIA_INVALID_RESPONSE` | Gaia response unparseable |
+| 503 | `GAIA_UNAVAILABLE` | Gaia Archive unreachable |
+| 503 | `GAIA_RATE_LIMITED` | Gaia Archive asked for back-off (HTTP 429) |
+| 504 | `GAIA_TIMEOUT` | Gaia Archive request timed out |
 | 502 | `INVALID_FITS_FILE` | HTML/XML body, corrupt or incomplete FITS |
 | 503 | `IRSA_UNAVAILABLE` | connection failure |
 | 503 | `IRSA_CUTOUT_UNAVAILABLE` | cutout service busy/error after retries |
@@ -1795,7 +1870,7 @@ Deterministic suite (mocked HTTP, synthetic FITS fixtures, fixed seeds):
 uv run pytest -q
 ```
 
-Expected: **280 passed, 7 skipped** (the 7 skips are the opt-in live IRSA tests).
+Expected: **388 passed, 7 skipped** (the 7 skips are the opt-in live IRSA tests; includes the 73 Gaia DR3 tests from Phase 5).
 `compileall` and `pyflakes` are part of the fresh-install check.
 
 Phase 2 review additions:
@@ -1898,7 +1973,7 @@ timeline 126 products → 63 observations → 63 epochs, 33.81-day baseline,
 live service: 2 passed in 93 s | live API workflow: 1 passed in 73 s
 ```
 
-Phase 3 deterministic suite (`uv run pytest -q`, run twice): **280 passed, 7 skipped**
+Phase 3/4 + Phase 5 (Gaia) deterministic suite (`uv run pytest -q`): **388 passed, 7 skipped**
 in 34-57 s - the Phase 2 baseline plus 57 Phase 3 tests covering image preparation,
 detection, aperture photometry, uncertainty-aware association, variability, the target
 light-curve service, source persistence and the new API routes. The 7 skips are the
