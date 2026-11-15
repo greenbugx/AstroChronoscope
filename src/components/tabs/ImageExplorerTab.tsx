@@ -41,79 +41,68 @@ export default function ImageExplorerTab({
 }: ImageExplorerTabProps) {
   const [stretchMode, setStretchMode] = useState<"linear" | "log" | "asinh" | "sqrt">("asinh");
 
-  // Type safe cast of inspection response payload
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const insp = (inspectData?.inspection || null) as any;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Workspace Header */}
-      <div className="flex flex-col gap-1 border-b border-neutral-800 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-sm bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
-          <h1 className="text-sm sm:text-base font-bold tracking-widest uppercase text-white font-mono">
-            FITS Image Explorer Workspace
-          </h1>
-          <span className="text-[10px] text-neutral-400 uppercase font-mono">
-            Stage 2 of 5 · Single-Observation Inspection & Astrometry
-          </span>
-        </div>
-        <p className="text-xs text-neutral-400 font-mono">
-          Detailed scientific inspection of individual SPHEREx FITS observations: spatial cutouts, multi-extension HDUs (IMAGE, FLAGS, VARIANCE, EPSF), pixel flux statistics, and celestial WCS coordinates.
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-4 font-mono">
       {/* Observation Selector Bar */}
-      <div className="rounded border border-neutral-800 bg-[#050608] p-3.5 flex flex-wrap items-center justify-between gap-3 font-mono">
+      <div className="border border-neutral-800 bg-[#0d0d0d] p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] text-neutral-500 uppercase">Active Observation:</span>
+          <span className="text-[10px] text-neutral-400 uppercase">Active Observation:</span>
           {selectedProduct ? (
             <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded text-xs font-bold bg-cyan-500/10 border border-cyan-500/30 text-cyan-300">
+              <span className="font-bold text-white bg-black px-2 py-0.5 border border-neutral-700">
                 {selectedProduct.observation_id}
               </span>
-              <span className="text-[10px] text-neutral-400">
-                Band: {selectedProduct.band || "Unknown"} · Calib: {selectedProduct.calib_level ?? 2}
+              <span className="text-sky-400 font-bold">
+                {selectedProduct.band?.replace("SPHEREx-", "") || "Band"}
+              </span>
+              <span className="text-neutral-500">
+                Calib Level: {selectedProduct.calib_level ?? 2}
               </span>
             </div>
           ) : (
-            <span className="text-xs text-amber-400 font-bold">No Observation Selected</span>
+            <span className="text-amber-400 font-bold">No Observation Selected</span>
           )}
         </div>
 
-        {/* Product Switcher if multiple products exist */}
+        {/* Switcher buttons if multiple products */}
         {availableProducts.length > 1 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto max-w-xl">
+          <div className="flex items-center gap-1 overflow-x-auto max-w-xl">
             <span className="text-[10px] text-neutral-500 uppercase mr-1">Switch:</span>
-            {availableProducts.map((p) => (
-              <button
-                key={p.observation_id}
-                onClick={() => {
-                  onSelectProduct(p);
-                  onFetchCutout(p);
-                  onInspectFITS(p);
-                }}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase whitespace-nowrap transition-all cursor-pointer ${
-                  selectedProduct?.observation_id === p.observation_id
-                    ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                    : "bg-neutral-900/60 text-neutral-400 border border-neutral-800 hover:text-white"
-                }`}
-              >
-                {p.band?.replace("SPHEREx-", "") || "Product"} · {p.observation_id?.slice(-8)}
-              </button>
-            ))}
+            {availableProducts.map((p) => {
+              const isActive = selectedProduct?.observation_id === p.observation_id;
+              return (
+                <button
+                  key={p.observation_id}
+                  onClick={() => {
+                    onSelectProduct(p);
+                    onFetchCutout(p);
+                    onInspectFITS(p);
+                  }}
+                  className={`px-2 py-0.5 text-[10px] uppercase font-bold border transition-colors cursor-pointer ${
+                    isActive
+                      ? "bg-amber-600 text-white border-amber-500"
+                      : "bg-neutral-900 text-neutral-400 hover:text-white border-neutral-800"
+                  }`}
+                >
+                  {p.band?.replace("SPHEREx-", "") || "P"} · {p.observation_id?.slice(-6) || "ID"}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Error Notices */}
+      {/* Errors */}
       {cutoutError && (
-        <div className="rounded border border-rose-500/60 bg-rose-950/20 p-3.5 text-xs text-rose-300 font-mono flex items-center justify-between">
-          <span className="text-rose-400 font-bold">CUTOUT ERROR: {cutoutError}</span>
+        <div className="border border-red-600 bg-red-950/40 p-2.5 text-xs text-red-200 flex items-center justify-between">
+          <span>CUTOUT ERROR: {cutoutError}</span>
           {selectedProduct && (
             <button
               onClick={() => onFetchCutout(selectedProduct)}
-              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/40 border border-rose-500 rounded text-[10px] uppercase text-white cursor-pointer"
+              className="px-2 py-0.5 bg-red-600 text-white font-bold uppercase text-[10px]"
             >
               Retry
             </button>
@@ -122,12 +111,12 @@ export default function ImageExplorerTab({
       )}
 
       {inspectError && (
-        <div className="rounded border border-rose-500/60 bg-rose-950/20 p-3.5 text-xs text-rose-300 font-mono flex items-center justify-between">
-          <span className="text-rose-400 font-bold">INSPECTION ERROR: {inspectError}</span>
+        <div className="border border-red-600 bg-red-950/40 p-2.5 text-xs text-red-200 flex items-center justify-between">
+          <span>INSPECTION ERROR: {inspectError}</span>
           {selectedProduct && (
             <button
               onClick={() => onInspectFITS(selectedProduct)}
-              className="px-2.5 py-1 bg-rose-500/20 hover:bg-rose-500/40 border border-rose-500 rounded text-[10px] uppercase text-white cursor-pointer"
+              className="px-2 py-0.5 bg-red-600 text-white font-bold uppercase text-[10px]"
             >
               Retry
             </button>
@@ -135,33 +124,27 @@ export default function ImageExplorerTab({
         </div>
       )}
 
-      {/* Main Workspace Layout (Two Columns) */}
+      {/* Main Workspace Layout */}
       {selectedProduct ? (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 font-mono">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Left Column: Spatial Cutout Visualizer */}
           <div className="lg:col-span-7 flex flex-col gap-4">
-            <section className="relative rounded border border-neutral-800 bg-[#050608] p-4 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold tracking-wider uppercase text-white">
-                    Spatial Cutout Preview
-                  </span>
-                  <span className="text-[10px] text-neutral-500 uppercase">
-                    Extracted from Calibrated FITS Data
-                  </span>
-                </div>
+            <section className="border border-neutral-800 bg-[#0d0d0d] flex flex-col">
+              <div className="bg-[#141414] px-3 py-1.5 border-b border-neutral-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Spatial Cutout Preview
+                </span>
 
-                {/* Stretch Controls */}
-                <div className="flex items-center gap-1.5 text-[10px]">
+                <div className="flex items-center gap-1 text-[10px]">
                   <span className="text-neutral-500 uppercase mr-1">Stretch:</span>
                   {(["linear", "log", "asinh", "sqrt"] as const).map((m) => (
                     <button
                       key={m}
                       onClick={() => setStretchMode(m)}
-                      className={`px-2 py-0.5 rounded uppercase font-mono transition-all cursor-pointer ${
+                      className={`px-1.5 py-0.5 uppercase border ${
                         stretchMode === m
-                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/50"
-                          : "bg-neutral-900/60 text-neutral-400 border border-neutral-800 hover:text-white"
+                          ? "bg-blue-600 text-white border-blue-500 font-bold"
+                          : "bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white"
                       }`}
                     >
                       {m}
@@ -171,48 +154,36 @@ export default function ImageExplorerTab({
               </div>
 
               {/* Viewport Frame */}
-              <div className="relative aspect-square w-full rounded border border-neutral-900 bg-black overflow-hidden flex items-center justify-center">
+              <div className="relative aspect-square w-full bg-black border-b border-neutral-800 flex items-center justify-center p-2">
                 {isLoadingCutout ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <TwinOrbit className="size-6 text-cyan-400" />
-                    <span className="text-xs text-neutral-400 uppercase tracking-widest">
-                      Extracting Cutout...
-                    </span>
+                  <div className="flex flex-col items-center gap-2 text-neutral-400 text-xs">
+                    <TwinOrbit className="size-5 text-white" />
+                    <span>EXTRACTING CUTOUT...</span>
                   </div>
                 ) : cutoutData?.cutout.preview_url ? (
                   <img
                     src={getFileUrl(cutoutData.cutout.preview_url)}
-                    alt={`FITS Cutout for ${selectedProduct.observation_id}`}
+                    alt={`Cutout for ${selectedProduct.observation_id}`}
                     className="w-full h-full object-contain"
                   />
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-neutral-500 text-xs text-center p-6">
-                    <span>No cutout loaded for this observation.</span>
+                    <span>No cutout loaded.</span>
                     <button
                       onClick={() => onFetchCutout(selectedProduct)}
-                      className="px-3 py-1 rounded border border-neutral-700 bg-neutral-900 text-neutral-300 hover:text-white text-[10px] uppercase cursor-pointer"
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase cursor-pointer"
                     >
                       Fetch Cutout
                     </button>
                   </div>
                 )}
-
-                {/* Target Crosshair Overlay */}
-                {cutoutData && (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-40">
-                    <div className="h-6 w-6 border border-cyan-400/60 rounded-full" />
-                    <div className="absolute h-8 w-[1px] bg-cyan-400/60" />
-                    <div className="absolute w-8 h-[1px] bg-cyan-400/60" />
-                  </div>
-                )}
               </div>
 
-              {/* Cutout Controls & Direct FITS Download */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-900 text-xs">
-                <div className="flex items-center gap-2 text-neutral-400 text-[10px]">
-                  <span>Dimensions: {cutoutData?.cutout.width ?? 0} × {cutoutData?.cutout.height ?? 0} px</span>
-                  <span>·</span>
-                  <span>Unit: {cutoutData?.cutout.unit || "MJy/sr"}</span>
+              {/* Action bar below preview */}
+              <div className="p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs bg-[#111111]">
+                <div className="text-[10px] text-neutral-400 flex items-center gap-2">
+                  <span>Dimensions: <strong className="text-white">{cutoutData?.cutout.width ?? 0} × {cutoutData?.cutout.height ?? 0} px</strong></span>
+                  <span>Unit: <strong className="text-white">{cutoutData?.cutout.unit || "MJy/sr"}</strong></span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -222,7 +193,7 @@ export default function ImageExplorerTab({
                       download
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1 rounded border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-[10px] text-cyan-400 hover:text-cyan-200 uppercase tracking-wider transition-all"
+                      className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 text-[10px] uppercase font-bold"
                     >
                       Download Cutout FITS
                     </a>
@@ -232,9 +203,9 @@ export default function ImageExplorerTab({
                       href={selectedProduct.fits_access_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="px-3 py-1 rounded border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-[10px] text-neutral-300 hover:text-white uppercase tracking-wider transition-all"
+                      className="px-2.5 py-1 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 text-[10px] uppercase font-bold"
                     >
-                      Original Full FITS
+                      Full FITS
                     </a>
                   )}
                 </div>
@@ -242,163 +213,160 @@ export default function ImageExplorerTab({
             </section>
           </div>
 
-          {/* Right Column: Statistics, WCS & HDU Metadata */}
+          {/* Right Column: HDU Structure & Statistics */}
           <div className="lg:col-span-5 flex flex-col gap-4">
-            {/* Image Flux Statistics */}
-            <section className="rounded border border-neutral-800 bg-[#050608] p-4 flex flex-col gap-3">
-              <span className="text-xs font-bold tracking-wider uppercase text-cyan-400 border-b border-neutral-800 pb-1.5">
-                Image Flux Statistics (Finite Pixels)
-              </span>
+            {/* Pixel Statistics */}
+            <section className="border border-neutral-800 bg-[#0d0d0d]">
+              <div className="bg-[#141414] px-3 py-1.5 border-b border-neutral-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Pixel Flux Statistics
+                </span>
+                <button
+                  onClick={() => onInspectFITS(selectedProduct)}
+                  disabled={isLoadingInspect}
+                  className="px-2 py-0.5 bg-neutral-800 hover:bg-neutral-700 text-white border border-neutral-700 text-[10px] uppercase font-bold cursor-pointer"
+                >
+                  {isLoadingInspect ? "Inspecting..." : "Inspect HDU"}
+                </button>
+              </div>
 
               {insp?.stats ? (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Finite Fraction</div>
-                    <div className="text-white font-bold">
-                      {(insp.stats.finite_fraction * 100).toFixed(1)}%
-                    </div>
+                <div className="p-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Finite Fraction</span>
+                    <span className="text-white font-bold">{(insp.stats.finite_fraction * 100).toFixed(1)}%</span>
                   </div>
 
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Valid Fraction</div>
-                    <div className="text-emerald-400 font-bold">
-                      {(insp.stats.valid_fraction * 100).toFixed(1)}%
-                    </div>
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Valid Fraction</span>
+                    <span className="text-emerald-400 font-bold">{(insp.stats.valid_fraction * 100).toFixed(1)}%</span>
                   </div>
 
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Mean Flux</div>
-                    <div className="text-white font-mono">
-                      {insp.stats.mean != null ? insp.stats.mean.toFixed(4) : "N/A"}
-                    </div>
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Mean Flux</span>
+                    <span className="text-white font-bold">{insp.stats.mean != null ? insp.stats.mean.toFixed(4) : "N/A"}</span>
                   </div>
 
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Median Flux</div>
-                    <div className="text-white font-mono">
-                      {insp.stats.median != null ? insp.stats.median.toFixed(4) : "N/A"}
-                    </div>
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Median Flux</span>
+                    <span className="text-white font-bold">{insp.stats.median != null ? insp.stats.median.toFixed(4) : "N/A"}</span>
                   </div>
 
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Std Deviation</div>
-                    <div className="text-neutral-300 font-mono">
-                      {insp.stats.std != null ? insp.stats.std.toFixed(4) : "N/A"}
-                    </div>
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Std Deviation</span>
+                    <span className="text-neutral-300 font-bold">{insp.stats.std != null ? insp.stats.std.toFixed(4) : "N/A"}</span>
                   </div>
 
-                  <div className="p-2 rounded bg-neutral-950/60 border border-neutral-900">
-                    <div className="text-[10px] text-neutral-500 uppercase">Range [Min, Max]</div>
-                    <div className="text-neutral-300 font-mono text-[10px]">
+                  <div className="p-2 bg-black border border-neutral-800">
+                    <span className="text-[10px] text-neutral-500 uppercase block">Flux Range [Min, Max]</span>
+                    <span className="text-neutral-300 text-[11px]">
                       {insp.stats.min != null ? insp.stats.min.toFixed(2) : "0"} to {insp.stats.max != null ? insp.stats.max.toFixed(2) : "0"}
-                    </div>
+                    </span>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-neutral-500 py-3 text-center">
-                  {isLoadingInspect ? "Inspecting FITS statistics..." : "Click Inspect HDU to compute image statistics."}
+                <div className="p-4 text-neutral-500 text-xs text-center">
+                  Click Inspect HDU to compute image statistics.
                 </div>
               )}
             </section>
 
-            {/* Celestial WCS & Astrometry Matrix */}
-            <section className="rounded border border-neutral-800 bg-[#050608] p-4 flex flex-col gap-3">
-              <span className="text-xs font-bold tracking-wider uppercase text-amber-400 border-b border-neutral-800 pb-1.5">
-                Celestial WCS & Astrometric Solution
-              </span>
+            {/* WCS Astrometry */}
+            <section className="border border-neutral-800 bg-[#0d0d0d]">
+              <div className="bg-[#141414] px-3 py-1.5 border-b border-neutral-800">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  WCS Astrometric Solution
+                </span>
+              </div>
 
               {insp?.wcs ? (
-                <div className="flex flex-col gap-2 text-xs">
+                <div className="p-3 flex flex-col gap-1.5 text-xs">
                   <div className="flex items-center justify-between border-b border-neutral-900 pb-1">
                     <span className="text-neutral-400">Projection</span>
                     <span className="text-white font-bold">{insp.wcs.projection || "TAN-SIP"}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-neutral-900 pb-1">
                     <span className="text-neutral-400">Pixel Scale</span>
-                    <span className="text-white font-mono">
+                    <span className="text-white font-bold">
                       {insp.wcs.pixel_scale_arcsec != null ? `${insp.wcs.pixel_scale_arcsec.toFixed(3)} arcsec/px` : "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between border-b border-neutral-900 pb-1">
                     <span className="text-neutral-400">Target Inside Footprint</span>
-                    <span className={`font-bold ${insp.wcs.target_inside_image ? "text-emerald-400" : "text-rose-400"}`}>
-                      {insp.wcs.target_inside_image ? "VERIFIED (INSIDE)" : "OUTSIDE FOOTPRINT"}
+                    <span className={`font-bold uppercase ${insp.wcs.target_inside_image ? "text-emerald-400" : "text-red-400"}`}>
+                      {insp.wcs.target_inside_image ? "INSIDE (YES)" : "OUTSIDE (NO)"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-neutral-400">Reference Pixel [CRPIX]</span>
-                    <span className="text-neutral-300 font-mono text-[11px]">
+                    <span className="text-neutral-400">CRPIX</span>
+                    <span className="text-neutral-300">
                       {insp.wcs.crpix ? `[${insp.wcs.crpix[0]?.toFixed(1)}, ${insp.wcs.crpix[1]?.toFixed(1)}]` : "N/A"}
                     </span>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-neutral-500 py-3 text-center">
+                <div className="p-4 text-neutral-500 text-xs text-center">
                   Astrometric WCS solution not yet inspected.
                 </div>
               )}
             </section>
 
-            {/* FITS HDU Extensions Matrix */}
-            <section className="rounded border border-neutral-800 bg-[#050608] p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between border-b border-neutral-800 pb-1.5">
-                <span className="text-xs font-bold tracking-wider uppercase text-white">
-                  FITS HDU Extensions Matrix
+            {/* FITS HDU Extensions */}
+            <section className="border border-neutral-800 bg-[#0d0d0d]">
+              <div className="bg-[#141414] px-3 py-1.5 border-b border-neutral-800 flex items-center justify-between">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  HDU Extensions Table
                 </span>
-                <button
-                  onClick={() => onInspectFITS(selectedProduct)}
-                  disabled={isLoadingInspect}
-                  className="px-2 py-0.5 rounded border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-[10px] text-cyan-400 uppercase cursor-pointer disabled:opacity-50"
-                >
-                  {isLoadingInspect ? "Inspecting..." : "Re-Inspect HDU"}
-                </button>
               </div>
 
               {insp?.hdus && insp.hdus.length > 0 ? (
-                <div className="flex flex-col gap-1.5 text-xs">
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {insp.hdus.map((hdu: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-2 rounded border border-neutral-900 bg-neutral-950/40 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-neutral-800 text-neutral-300">
-                          #{hdu.index}
-                        </span>
-                        <span className="font-bold text-white">{hdu.name || "PRIMARY"}</span>
-                        <span className="text-[10px] text-neutral-500 uppercase">{hdu.kind}</span>
-                      </div>
-                      <div className="text-[10px] text-neutral-400 font-mono">
-                        {hdu.shape ? `${hdu.shape.join(" × ")} px` : "Header Only"}
-                      </div>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#181818] border-b border-neutral-800 text-[10px] text-neutral-400 uppercase">
+                        <th className="py-1 px-2.5">#</th>
+                        <th className="py-1 px-2.5">Name</th>
+                        <th className="py-1 px-2.5">Type</th>
+                        <th className="py-1 px-2.5">Shape</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-900 font-mono text-[11px]">
+                      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                      {insp.hdus.map((hdu: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-neutral-900/50">
+                          <td className="py-1 px-2.5 text-neutral-500">#{hdu.index}</td>
+                          <td className="py-1 px-2.5 font-bold text-white">{hdu.name || "PRIMARY"}</td>
+                          <td className="py-1 px-2.5 text-neutral-400 uppercase">{hdu.kind}</td>
+                          <td className="py-1 px-2.5 text-neutral-300">{hdu.shape ? `${hdu.shape.join(" × ")}` : "Header"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div className="text-xs text-neutral-500 py-3 text-center">
+                <div className="p-4 text-neutral-500 text-xs text-center">
                   No HDU extensions loaded.
                 </div>
               )}
 
-              {/* Special Extensions Quality Status */}
-              <div className="pt-2 border-t border-neutral-900 grid grid-cols-3 gap-2 text-[10px]">
-                <div className="p-1.5 rounded bg-neutral-950/60 border border-neutral-900 flex flex-col">
-                  <span className="text-neutral-500">FLAGS</span>
-                  <span className={insp?.mask?.available ? "text-emerald-400 font-bold" : "text-neutral-500"}>
-                    {insp?.mask?.available ? "Available" : "Absent"}
+              {/* Special Extension Presence */}
+              <div className="p-2 border-t border-neutral-800 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+                <div className="p-1 bg-black border border-neutral-800">
+                  <span className="text-neutral-500 block">FLAGS</span>
+                  <span className={insp?.mask?.available ? "text-emerald-400 font-bold" : "text-neutral-600"}>
+                    {insp?.mask?.available ? "PRESENT" : "ABSENT"}
                   </span>
                 </div>
-                <div className="p-1.5 rounded bg-neutral-950/60 border border-neutral-900 flex flex-col">
-                  <span className="text-neutral-500">VARIANCE</span>
-                  <span className={insp?.variance?.available ? "text-emerald-400 font-bold" : "text-neutral-500"}>
-                    {insp?.variance?.available ? "Available" : "Absent"}
+                <div className="p-1 bg-black border border-neutral-800">
+                  <span className="text-neutral-500 block">VARIANCE</span>
+                  <span className={insp?.variance?.available ? "text-emerald-400 font-bold" : "text-neutral-600"}>
+                    {insp?.variance?.available ? "PRESENT" : "ABSENT"}
                   </span>
                 </div>
-                <div className="p-1.5 rounded bg-neutral-950/60 border border-neutral-900 flex flex-col">
-                  <span className="text-neutral-500">EPSF</span>
-                  <span className={insp?.psf?.available ? "text-emerald-400 font-bold" : "text-neutral-500"}>
-                    {insp?.psf?.available ? "Available" : "Absent"}
+                <div className="p-1 bg-black border border-neutral-800">
+                  <span className="text-neutral-500 block">EPSF</span>
+                  <span className={insp?.psf?.available ? "text-emerald-400 font-bold" : "text-neutral-600"}>
+                    {insp?.psf?.available ? "PRESENT" : "ABSENT"}
                   </span>
                 </div>
               </div>
@@ -406,29 +374,21 @@ export default function ImageExplorerTab({
           </div>
         </div>
       ) : (
-        /* Standby State When No Product Selected */
-        <div className="rounded border border-neutral-800 bg-[#050608] p-12 text-center flex flex-col items-center justify-center gap-4 font-mono">
-          <div className="h-12 w-12 rounded border border-cyan-400/40 bg-cyan-500/10 flex items-center justify-center text-cyan-400 text-lg font-bold">
-            🔭
-          </div>
-          <div className="max-w-md flex flex-col gap-1">
-            <h3 className="text-sm sm:text-base font-bold tracking-[0.2em] text-white uppercase">
-              No Observation Selected For Inspection
-            </h3>
-            <p className="text-xs text-neutral-400">
-              Go to the Discovery workspace to search and select a SPHEREx observation epoch, or choose from previously discovered observations.
-            </p>
-          </div>
+        <div className="border border-neutral-800 bg-[#0d0d0d] p-8 text-center flex flex-col items-center justify-center gap-2">
+          <span className="text-xs font-bold text-white uppercase tracking-wider">
+            No Observation Selected
+          </span>
+          <span className="text-[11px] text-neutral-400">
+            Go to Discovery to query and select an observation product.
+          </span>
           <button
             onClick={() => onNavigateTab("discovery")}
-            className="mt-2 inline-flex items-center gap-2 rounded border border-cyan-400/60 bg-cyan-500/15 hover:bg-cyan-500/25 px-5 py-2 text-xs font-bold uppercase tracking-wider text-cyan-200 transition-all cursor-pointer active:scale-95"
+            className="mt-2 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase cursor-pointer"
           >
-            <span>GO TO DISCOVERY WORKSPACE</span>
-            <span className="text-cyan-400">▶</span>
+            GO TO DISCOVERY
           </button>
         </div>
       )}
     </div>
   );
 }
-

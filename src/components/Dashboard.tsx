@@ -392,84 +392,57 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
     timelineData?.epochs.flatMap((epoch) => epoch.products) ?? [];
 
   return (
-    <div className="relative h-screen w-full bg-black text-neutral-200 overflow-y-auto selection:bg-amber-400/30 selection:text-white font-mono antialiased">
-      {/* =========================================================================
-          MISSION CONTROL TOP FLIGHT DECK (HEADER)
-         ========================================================================= */}
-      <header className="sticky top-0 z-40 w-full border-b border-neutral-800 bg-black/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-4">
-          {/* Left: Back Navigation & Mission Brand */}
-          <div className="flex items-center gap-3 sm:gap-6">
+    <div className="relative h-screen w-full bg-black text-neutral-200 overflow-y-auto font-mono antialiased">
+      {/* MISSION CONTROL HEADER */}
+      <header className="sticky top-0 z-40 w-full border-b border-neutral-800 bg-black">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 h-14 flex items-center justify-between gap-3">
+          {/* Left: Back & Title */}
+          <div className="flex items-center gap-3">
             <button
               onClick={onReturnToLanding}
-              className="group inline-flex items-center gap-2 rounded border border-neutral-700 bg-neutral-900/80 hover:bg-neutral-800 hover:border-amber-400/60 px-3 py-1.5 text-[11px] font-mono tracking-wider uppercase text-neutral-300 hover:text-white transition-all cursor-pointer active:scale-95"
-              title="Return to Spacecraft Landing View"
+              className="px-2.5 py-1 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white border border-neutral-700 text-xs uppercase font-bold cursor-pointer"
             >
-              <span className="text-amber-400 opacity-70 group-hover:-translate-x-0.5 transition-transform">◀</span>
-              <span>BACK</span>
+              BACK
             </button>
 
             <div className="flex flex-col">
-              <span
-                className="text-base sm:text-lg font-bold tracking-[0.2em] text-white font-bodoni uppercase"
-                style={{ fontFamily: "'OPTIBodoni-Antiqua', serif" }}
-              >
+              <span className="text-sm sm:text-base font-bold tracking-widest text-white uppercase">
                 ASTROCHRONOSCOPE
               </span>
-              <div className="flex items-center gap-2 text-[10px] tracking-wider text-neutral-400">
-                <span className="text-amber-400/90 font-semibold">MISSION: SPHEREx</span>
-                <span className="text-neutral-600">|</span>
-                <span className="text-neutral-400">NASA/IPAC IRSA SIA2</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Center: Live UTC Mission Clock & MJD */}
-          <div className="hidden lg:flex items-center gap-4 rounded border border-neutral-800 bg-[#07080a] px-3.5 py-1 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              <span className="text-neutral-500 uppercase text-[10px]">UTC:</span>
-              <span className="text-white font-bold tabular-nums">{currentTimeUtc}</span>
-            </div>
-            <span className="text-neutral-700">|</span>
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-500 uppercase text-[10px]">MJD:</span>
-              <span className="text-amber-400 font-bold tabular-nums">{currentMjd}</span>
-            </div>
-          </div>
-
-          {/* Right: Telemetry Status */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex items-center gap-2 rounded border border-neutral-800 bg-[#07080a] px-3 py-1 text-xs">
-              <span className="relative flex h-2 w-2">
-                {healthStatus === "online" && (
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                )}
-                <span
-                  className={`relative inline-flex rounded-full h-2 w-2 ${
-                    healthStatus === "online"
-                      ? "bg-emerald-400"
-                      : healthStatus === "connecting"
-                        ? "bg-amber-400"
-                        : "bg-rose-500"
-                  }`}
-                />
+              <span className="text-[10px] text-neutral-500 uppercase tracking-wider">
+                SPHEREx OPERATIONS · NASA/IPAC IRSA · {health?.version ? `v${health.version}` : "v0.1.0"}
               </span>
-              <div className="flex flex-col text-right">
-                <span className="text-[9px] text-neutral-500 uppercase tracking-widest leading-none">
-                  {healthStatus === "online" ? "SYS_NOMINAL" : healthStatus === "connecting" ? "ACQUIRING..." : "LINK_OFFLINE"}
-                </span>
-                <span className="text-[11px] text-white font-bold tracking-wider leading-tight">
-                  {health ? `${health.default_collection} v${health.version}` : "127.0.0.1:8000"}
-                </span>
+            </div>
+          </div>
+
+          {/* Right: Telemetry & Mission Clock */}
+          <div className="flex items-center gap-2 text-xs">
+            <div
+              className={`px-3 py-1 font-bold text-xs uppercase border ${
+                healthStatus === "online"
+                  ? "bg-emerald-600/90 text-white border-emerald-500"
+                  : healthStatus === "connecting"
+                    ? "bg-amber-600/90 text-white border-amber-500"
+                    : "bg-red-600/90 text-white border-red-500"
+              }`}
+            >
+              {healthStatus === "online" ? "SYSTEM ONLINE" : healthStatus === "connecting" ? "CONNECTING" : "OFFLINE"}
+            </div>
+
+            <div className="hidden md:flex items-center gap-2">
+              <div className="bg-neutral-900 border border-neutral-800 px-2.5 py-1 text-neutral-300 text-[11px]">
+                UTC {currentTimeUtc}
+              </div>
+              <div className="bg-neutral-900 border border-neutral-800 px-2.5 py-1 text-amber-300 text-[11px]">
+                MJD {currentMjd}
               </div>
             </div>
 
             <button
               onClick={handleRefreshHealth}
               disabled={healthStatus === "connecting"}
-              className="p-1.5 rounded border border-neutral-800 bg-neutral-900/80 hover:bg-neutral-800 hover:border-neutral-600 text-neutral-400 hover:text-white transition-all cursor-pointer text-xs disabled:opacity-50"
-              title="Ping Telemetry Stream"
+              className="p-1 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white text-xs cursor-pointer"
+              title="Refresh connection"
             >
               ↻
             </button>
@@ -477,28 +450,21 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
         </div>
       </header>
 
-      {/* =========================================================================
-          FIVE PRIMARY WORKSPACES TOP NAVIGATION BAR
-          (Discovery | Image Explorer | Differential Analysis | Time-Domain Analysis | Scientific Reports)
-         ========================================================================= */}
-      <nav className="sticky top-16 z-30 w-full bg-[#0a2744] border-b border-[#143d66] shadow-md">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-12 flex items-center text-sm font-sans sm:text-base">
-          <div className="flex items-center overflow-x-auto">
-            {/* Tab 1: Discovery */}
+      {/* MISSION WORKSPACE TABS */}
+      <nav className="sticky top-14 z-30 w-full bg-black border-b border-neutral-800">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4">
+          <div className="flex items-center gap-1 overflow-x-auto py-1.5">
             <button
               onClick={() => setActiveNavTab("discovery")}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "discovery"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Discovery
             </button>
 
-            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
-
-            {/* Tab 2: Image Explorer */}
             <button
               onClick={() => {
                 setActiveNavTab("explorer");
@@ -507,66 +473,54 @@ export default function Dashboard({ onReturnToLanding }: DashboardProps) {
                   void handleInspectFITS(selectedProduct);
                 }
               }}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "explorer"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Image Explorer
             </button>
 
-            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
-
-            {/* Tab 3: Differential Analysis */}
             <button
               onClick={() => setActiveNavTab("differential")}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "differential"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Differential Analysis
             </button>
 
-            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
-
-            {/* Tab 4: Time-Domain Analysis */}
             <button
               onClick={() => setActiveNavTab("timedomain")}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "timedomain"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Time-Domain Analysis
             </button>
 
-            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
-
-            {/* Tab 5: Scientific Reports */}
             <button
               onClick={() => setActiveNavTab("reports")}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "reports"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Scientific Reports
             </button>
 
-            <span className="text-[#1d4d7a] mx-2 sm:mx-3 select-none">|</span>
-
-            {/* Tab 6: Job Monitor */}
             <button
               onClick={() => setActiveNavTab("jobs")}
-              className={`px-3 py-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold uppercase transition-colors cursor-pointer border whitespace-nowrap ${
                 activeNavTab === "jobs"
-                  ? "text-sky-300 font-semibold drop-shadow-[0_0_8px_rgba(56,189,248,0.6)]"
-                  : "text-[#3896e6] hover:text-sky-200"
+                  ? "bg-neutral-800 text-amber-300 border-neutral-600"
+                  : "bg-neutral-950 text-neutral-400 hover:text-white border-neutral-900 hover:bg-neutral-900"
               }`}
             >
               Job Monitor
